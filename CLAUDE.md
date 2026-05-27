@@ -17,6 +17,16 @@ Personal context: [YOUR_PERSONAL_CONTEXT — e.g. hobbies, side projects, areas 
 
 ---
 
+**First-time setup detected?** If this Identity section still contains `[YOUR_NAME]` or other
+placeholders, the repo has not been configured yet. Ask the user for their name, role, org,
+domain, teams, integrations, timezone, and personal areas — then:
+1. Fill in this Identity section
+2. Update `config.yml` owner block and teams list
+3. Run `bash bin/setup-check.sh` and report what still needs manual wiring outside the repo
+Do not proceed with any wiki operations until Identity is filled in.
+
+---
+
 ## Architecture Pattern
 
 Karpathy LLM-wiki: compile knowledge once and maintain it. Do not re-derive at query time.

@@ -24,6 +24,46 @@ The wiki is the AI's persistent memory as much as it is yours. At session start,
 
 ---
 
+## Set up with Claude Code
+
+The easiest way to configure the template is to let Claude Code do it. The repo is designed to be read and configured by an AI agent — `CLAUDE.md` tells the agent exactly what needs filling in, and it can walk you through the whole thing interactively.
+
+**1. Use the template on GitHub**
+
+Click **"Use this template"** → **"Create a new repository"** on [github.com/Dorvaryn/brain-template](https://github.com/Dorvaryn/brain-template). Name it `brain` (or whatever you prefer), clone it locally:
+
+```bash
+git clone git@github.com:YOUR_USERNAME/brain.git ~/brain
+```
+
+**2. Open Claude Code in the repo**
+
+```bash
+claude ~/brain
+```
+
+**3. Paste this prompt to get started**
+
+```
+I've just cloned brain-template to use as my personal wiki. Here's my setup:
+
+- Name: [your name]
+- Role: [your role and org]
+- Domain: [what you work on]
+- Teams: [list your teams, with Jira board prefixes if you use Jira]
+- Integrations I want to enable: [Slack / Outlook / Jira / Confluence / Gmail / none]
+- Timezone: [your timezone]
+- Personal areas to track: [e.g. side projects, travel, reading — or skip]
+
+Please read CLAUDE.md and config.yml, fill in the Identity section, configure
+config.yml for my setup, then run bin/setup-check.sh to show what still needs
+doing outside the repo.
+```
+
+Claude will read `CLAUDE.md`, understand the schema, fill in `config.yml` and the Identity section from your description, and run `setup-check.sh` to surface anything that still needs manual wiring (settings.json hooks, skill symlinks, global CLAUDE.md). You only need to handle the parts that touch files outside the repo.
+
+---
+
 ## Quick start (minimal — no integrations)
 
 **Requirements:** [Claude Code](https://claude.ai/code) CLI installed.
