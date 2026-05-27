@@ -139,6 +139,14 @@ On first run with an empty `raw/`, it initialises the wiki structure and writes 
 
 ---
 
+## Obsidian dashboard (optional)
+
+`dashboard.md` in the repo root is an [Obsidian](https://obsidian.md) + [Dataview](https://github.com/blacksmithgu/obsidian-dataview) dashboard. Open the brain repo as an Obsidian vault and enable the Dataview plugin to get live views of open items, active projects, stale decisions, and recently resolved items. Optional personal-area sections (travel, theatre, etc.) are included as commented-out examples.
+
+The wiki is plain markdown — Obsidian is optional. The brain-session skill provides equivalent context at every session start without it.
+
+---
+
 ## Full setup (with integrations)
 
 Each integration requires an MCP server. Enable only what you use — the dream cycle skips unavailable sources gracefully.
