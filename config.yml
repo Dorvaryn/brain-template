@@ -1,0 +1,149 @@
+# Brain configuration — edit this file to customise your setup.
+# All agents read this file. Do not hardcode values in CLAUDE.md or skills.
+
+owner:
+  name: "Your Name"
+  role: "Your Role"
+  org: "Your Organisation"
+  domain: "Your Domain"     # e.g. "Backend Engineering", "iOS Development", "Product"
+  timezone: "Europe/London" # IANA timezone name — used when converting UTC captures to local time
+
+# --- Teams ---
+# Define your work teams. Each team gets a wiki/projects/[area]/ directory.
+# Set jira_board to the Jira project key prefix (e.g. "PROJ-"), or null if no Jira board.
+# Remove teams that don't apply; add as many as you need.
+teams:
+  - name: "My Team"
+    area: "my-team"          # slug used in wiki paths and ingest routing
+    jira_board: "MYTEAM-"    # Jira project key prefix, or null
+    platforms: []            # e.g. [ios, android, web, backend] — or leave empty
+  - name: "Leadership"
+    area: "leadership"
+    jira_board: null
+  - name: "Personal"
+    area: "personal"
+    jira_board: null
+
+# Project types — customise or add to match your work
+project_types:
+  - platform        # Feature/delivery work
+  - cross-cutting   # Spans multiple teams
+  - evaluation      # Vendor/SDK/tool evaluation
+  - roadmap         # Strategic initiatives
+  - devex           # Developer experience and tooling
+  - personal        # Personal projects and life admin
+
+# --- Slack ---
+# Remove this section entirely if you do not use Slack.
+slack:
+  saved_items:
+    enabled: true
+    clear_on_resolve: true  # Un-save items when wiki page is resolved
+
+  # Canvases to read every ingest (living documents — agenda, decisions, actions)
+  canvases: []
+  # Example:
+  # canvases:
+  #   - name: "Weekly Agenda"
+  #     channel: "#my-team-channel"
+  #     area: "my-team"
+  #     note: "Updated throughout the week; check every ingest"
+
+  # Channels to monitor. Priorities:
+  #   high:         all threads active in last 24h
+  #   low:          only threads where you participated or were @mentioned, or >5 replies
+  #   mention-only: only threads where you are directly @mentioned
+  capture_channels: []
+  # Example:
+  # capture_channels:
+  #   - name: "#my-team"
+  #     area: "my-team"
+  #     priority: high
+  #   - name: "#general"
+  #     area: "leadership"
+  #     priority: mention-only
+
+# --- Jira ---
+# Remove this section if you do not use Jira.
+jira:
+  lookback_hours: 24
+  workflow: kanban           # kanban or scrum
+  capture_team_summary: true # Capture a board-level summary in addition to personal involvement
+  filters: {}
+
+# --- Gmail ---
+# Remove this section if you do not use Gmail capture.
+# Available via Gemini CLI (native Google tools) or a Gmail MCP server.
+gmail:
+  capture_filters: []
+  # Example:
+  # capture_filters:
+  #   - label: "travel"
+  #     query: "subject:(booking confirmation OR itinerary OR reservation) (flight OR hotel OR train)"
+  #     area: "travel"
+  #   - label: "life-admin"
+  #     query: "subject:(policy OR renewal OR quote) (insurance OR utilities)"
+  #     area: "life-admin"
+
+# --- Outlook email ---
+# Remove this section if you do not use Outlook.
+# Requires Microsoft 365 MCP server.
+outlook:
+  capture_filters: []
+  # Example:
+  # capture_filters:
+  #   - label: "project-comms"
+  #     query: "PROJ- OR MYTEAM-"
+  #     area: "work"
+  #   - label: "architecture"
+  #     query: "subject:(architecture OR RFC OR design OR proposal OR ADR)"
+  #     area: "work"
+  #   - label: "vendor"
+  #     # Exclude internal domains and known automated senders
+  #     query: "NOT from:yourcompany.com NOT from:github.com NOT from:atlassian.net NOT from:slack.com"
+  #     area: "leadership"
+
+# --- Confluence ---
+# Remove this section if you do not use Confluence.
+# Requires Atlassian MCP server.
+confluence:
+  base_url: "https://YOUR_ORG.atlassian.net/wiki"
+  capture_pages: []
+  # Example — capture an RFC index page and its children:
+  # capture_pages:
+  #   - title: "RFCs"
+  #     page_id: "YOUR_PAGE_ID"   # numeric Confluence page ID
+  #     area: "leadership"
+  #     slug_prefix: "rfc"
+  #   - title: "ADRs"
+  #     page_id: "YOUR_PAGE_ID"
+  #     area: "leadership"
+  #     slug_prefix: "adr"
+
+# --- Google Calendar ---
+# Remove this section if you do not use Google Calendar.
+# Available via Gemini CLI (native Google tools) or a Google Calendar MCP server.
+google_calendar:
+  lookforward_days: 14
+  calendars: []
+  # Example:
+  # calendars:
+  #   - name: "Personal"
+  #     areas: ["travel", "life-admin"]
+
+# --- Outlook Calendar ---
+# Remove this section if you do not use Outlook Calendar.
+# Requires Microsoft 365 MCP server.
+outlook_calendar:
+  lookforward_days: 5
+  capture_transcripts: true     # Capture Teams meeting transcripts automatically
+  transcript_lookback_days: 7
+  suppress_titles: []           # Meeting titles to skip entirely (e.g. daily standups)
+  compact_recurring: true       # Write recurring events as single-line summaries
+  calendars: []
+  # Example:
+  # suppress_titles:
+  #   - "Daily Stand-up"
+  # calendars:
+  #   - name: "Calendar"
+  #     areas: ["my-team", "leadership"]
