@@ -37,7 +37,7 @@ Three immutable layers:
 2. `wiki/` -- LLM-maintained synthesis. Written only by the dream cycle or brain-ops commands.
 3. `CLAUDE.md` -- this file. The schema. Read first, always.
 
-The wiki is the AI's persistent memory layer. At session start, load the relevant wiki context
+The wiki is the AI's persistent memory layer and a human readable knowledge center. At session start, load the relevant wiki context
 so the AI arrives with full situational awareness. Consistent frontmatter and page structure
 exist to serve machine parsing as much as human readability. The data format is tool-agnostic:
 any AI with filesystem access (Claude, Gemini, etc.) can read and query it.
