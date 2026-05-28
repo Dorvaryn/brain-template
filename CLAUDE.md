@@ -236,52 +236,35 @@ Add, remove, or rename areas to match your life. The system has no hard dependen
 
 ---
 
-## Ingest Workflow
+## Working with the Wiki
 
-Run this for each new file in raw/. Dream cycle runs this automatically.
+These rules apply to any agent writing or editing wiki pages — whether during a dream cycle, a session capture, or a manual operation.
 
-1. Read the raw file. Identify source type: session|ticket|slack|gmail|outlook|outlook-calendar|google-calendar|confluence|reading|inbox|cowork
-2. Extract: decisions, questions, architectural positions, projects referenced,
-   people mentioned, epics, technical topics, personal events, travel plans, life admin items.
-   Decisions → `wiki/decisions/[slug].md` with `type: decision`.
-   Questions → `wiki/decisions/[slug].md` with `type: question`.
-3. For Jira captures: map epic keys to teams via config.yml. Update project pages.
-4. For Gmail/google-calendar captures: route to area based on config.yml gmail/google_calendar filters.
-   For outlook/outlook-calendar captures: route to area based on config.yml outlook/outlook_calendar filters.
-   Note: personal calendar = Google Calendar (if configured); work calendar = Outlook (if configured).
-5. For Confluence captures: route using config.yml confluence.capture_pages slug_prefix.
-   - RFC pages (slug_prefix: rfc): find or create `wiki/architecture/rfc-NNN-slug.md`
-   - ADR pages (slug_prefix: adr): find or create `wiki/architecture/adr-NNN-slug.md`
-   - Extract: number and slug from page title, status from content body, author, teams, platforms affected.
-   - Enrich any existing architecture page that already covers the same RFC/ADR — merge Confluence content
-     into Detail section and update the Log entry; do not create a duplicate page.
-   - Store Confluence page URL as `confluence_ref` in frontmatter.
-6. For inbox captures: route by frontmatter `type` field —
-   travel → wiki/projects/personal/, life-admin → wiki/projects/personal/,
-   reading → wiki/knowledge/ (if substantive reference material worth retaining),
-   thought/capture (unstructured) → extract any decisions/questions/items, create pages as needed.
-   Unstructured captures with no clear type: flag in lint summary for human review.
-6b. For reading captures (raw/reading/): extract key signals into existing pages where a clear
-   target exists. If the content is substantive standalone reference material (industry report,
-   research paper, notable analysis), create wiki/knowledge/[slug].md instead.
-7. For each extracted item: find or create wiki page. Update content and Log section.
-8. For Slack captures: store message permalink as slack_ref in frontmatter.
-9. Update index.md for new pages.
-10. Append to log.md.
+**Page format**
+- Always follow the entity schema for the relevant type (frontmatter, section order, field values)
+- `## Summary` = one paragraph describing current state only. No history, no corrections.
+- Corrections and history belong in `## Detail` and `## Log`
+- Log entries: `- YYYY-MM-DD: one-line note on what changed`
+
+**After any write**
+- New page: add an entry to `index.md` under the appropriate section
+- Any page (new or updated): append to `log.md` with operation `manual` and a brief description
+- Run `/brain-sync` to commit changes
+
+**Conflicts**
+- Never resolve contradictions between pages silently
+- Flag with `> CONFLICT:` blockquote in both affected pages and surface in the next lint pass
+
+**Lint and finalise**
+- Full synthesis and lint steps are defined in the `/brain-dream` skill
+- For manual edits outside the dream cycle, lint is not required — but conflict checks and index/log updates are
 
 ---
 
-## Lint Workflow
+## Skills Reference
 
-Run this after every ingest pass.
-
-1. Scan for contradictions -- flag with `> CONFLICT:` blockquote in both pages.
-2. Find orphan pages (no inbound wikilinks).
-3. Find questions (type: question, status: open) potentially resolved by recent activity.
-4. Flag stale items: decisions/questions open >30 days, projects active >90 days without log update.
-5. Check resolved pages with slack_ref (status: resolved/complete/seen/abandoned) --
-   list their permalinks in the lint summary under "Ready to un-save in Slack". Human action required.
-6. Append lint summary to log.md.
+Raw data capture (how to populate `raw/`): see `/brain-ingest` skill
+Synthesis and lint (how to turn `raw/` into `wiki/`): see `/brain-dream` skill
 
 ---
 
