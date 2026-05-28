@@ -83,89 +83,21 @@ Edit two files:
 
 **`CLAUDE.md`** — update the `## Identity` section with your name, role, org, and domain.
 
-### 3. Wire up Claude Code
+### 3. Run the installer
 
-Add to your global `~/.claude/CLAUDE.md`:
-
-```markdown
-## Brain System
-
-@~/brain/prompt.md
-
-The brain-session skill is always active. Apply it in every session without being asked.
-
-Brain repo: ~/brain
-Brain MCP server: brain (filesystem access to the brain repo)
+```bash
+bash ~/brain/bin/install.sh
 ```
 
-Add the brain MCP server to your Claude Code config (`~/.claude/claude_desktop_config.json` or equivalent):
+Wires everything automatically: `BRAIN_DIR` env var, session hooks, MCP server, skill symlinks, global `CLAUDE.md`, and shell profiles. Also handles Gemini CLI and Windows Claude desktop app if present.
 
-```json
-{
-  "mcpServers": {
-    "brain": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/YOUR_USER/brain"]
-    }
-  }
-}
-```
-
-Register the skills in your Claude Code project or global settings:
-
-```json
-{
-  "skills": [
-    "~/brain/skills/brain-session",
-    "~/brain/skills/brain-dream",
-    "~/brain/skills/brain-ingest",
-    "~/brain/skills/brain-status",
-    "~/brain/skills/brain-sync"
-  ]
-}
-```
-
-Add the session hooks to your global `~/.claude/settings.json`. The `SessionStart` hook pulls the latest brain state before each session; the `SessionEnd` hook commits and pushes any new `raw/` captures so they are available on other machines:
-
-```json
-{
-  "env": {
-    "BRAIN_DIR": "/home/YOUR_USER/brain"
-  },
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $BRAIN_DIR/bin/brain-start.sh"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $BRAIN_DIR/bin/brain-end.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-The scripts live in `bin/` in this repo. `brain-start.sh` fails gracefully if there is no network or the remote is not yet configured. `brain-end.sh` is a no-op if there are no new captures.
-
-Once everything is configured, verify the setup with:
+Verify the setup:
 
 ```bash
 bash ~/brain/bin/setup-check.sh
 ```
 
-This runs 19 read-only checks across BRAIN_DIR, git remote, hook scripts, settings.json, CLAUDE.md, skill registration, and config placeholders — and prints exactly what to fix for anything that fails.
+Runs read-only checks across BRAIN_DIR, git remote, hooks, MCP server, skill registration, and config placeholders — prints exactly what to fix for anything that fails.
 
 ### 4. Run the first dream cycle
 
@@ -265,9 +197,13 @@ brain/
 │   ├── brain-ingest/SKILL.md
 │   ├── brain-status/SKILL.md
 │   └── brain-sync/SKILL.md
-├── bin/                         # Session lifecycle hooks (referenced by settings.json)
-│   ├── brain-start.sh           # SessionStart: git pull to sync before session
-│   └── brain-end.sh             # SessionEnd: auto-commit new raw/ captures
+├── bin/
+│   ├── install.sh               # One-shot machine setup (Claude Code + Gemini CLI)
+│   ├── setup-check.sh           # Verify setup is intact (read-only)
+│   ├── brain-start.sh           # Claude Code SessionStart hook — git pull
+│   ├── brain-end.sh             # Claude Code SessionEnd hook — auto-commit raw/
+│   ├── gemini-brain-start.sh    # Gemini CLI SessionStart hook — git pull + systemMessage
+│   └── gemini-brain-end.sh      # Gemini CLI SessionEnd hook — commit raw/ + systemMessage
 └── templates/                   # Frontmatter templates for each entity type
 ```
 
