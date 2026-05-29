@@ -141,7 +141,7 @@ else
     ok "~/.claude/CLAUDE.md references brain"
   else
     warn "~/.claude/CLAUDE.md does not appear to reference the brain" \
-      "Add the brain block from the README (prompt.md reference + brain-session skill)"
+      "Run install.sh — it symlinks ~/.claude/CLAUDE.md to brain/claude-global.md"
   fi
 fi
 
@@ -150,7 +150,7 @@ echo ""
 # ── 6. Skills ────────────────────────────────────────────────────────────────
 
 SKILLS_DIR="$HOME/.claude/skills"
-for skill in brain-session brain-dream brain-ingest brain-status brain-sync; do
+for skill in brain-dream brain-ingest brain-status brain-sync; do
   if [ -e "$SKILLS_DIR/$skill" ]; then
     ok "Skill registered: $skill"
   else
