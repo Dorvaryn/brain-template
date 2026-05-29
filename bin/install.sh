@@ -48,7 +48,9 @@ def has_hook(hooks_list, cmd):
 
 settings.setdefault("hooks", {})
 for event, script in [("SessionStart", "brain-start.sh"), ("SessionEnd", "brain-end.sh")]:
-    cmd = f"bash \$BRAIN_DIR/bin/{script}"
+    # brain-end.sh must use setsid so it survives Claude Code's process group teardown
+    prefix = "setsid bash" if script == "brain-end.sh" else "bash"
+    cmd = f"{prefix} \$BRAIN_DIR/bin/{script}"
     settings["hooks"].setdefault(event, [])
     if has_hook(settings["hooks"][event], cmd):
         print(f"  {event} brain hook already registered, skipping.")
@@ -90,31 +92,20 @@ for skill_dir in "$BRAIN_DIR/skills"/*/; do
   fi
 done
 
-# --- 4. Global CLAUDE.md ---
+# --- 4. Global CLAUDE.md (symlink -> brain/claude-global.md) ---
 CLAUDE_MD="$HOME/.claude/CLAUDE.md"
-if [[ ! -f "$CLAUDE_MD" ]]; then
-  cat > "$CLAUDE_MD" <<EOF
-# Global Claude Code Configuration
-
-@~/brain/prompt.md
-
-## Brain System
-
-The brain-session skill is always active. Apply it in every session without being asked.
-/brain-status, /brain-sync, and /brain-dream are available as on-demand commands.
-
-Brain repo: \$BRAIN_DIR ($BRAIN_DIR)
-Brain MCP server: brain (filesystem access to the brain repo)
-EOF
-  echo "Created $CLAUDE_MD"
+TARGET="$BRAIN_DIR/claude-global.md"
+if [[ -L "$CLAUDE_MD" && "$(readlink "$CLAUDE_MD")" == "$TARGET" ]]; then
+  echo "$CLAUDE_MD already symlinked to claude-global.md, skipping."
+elif [[ -e "$CLAUDE_MD" || -L "$CLAUDE_MD" ]]; then
+  mv "$CLAUDE_MD" "${CLAUDE_MD}.bak"
+  echo "Backed up existing $CLAUDE_MD to ${CLAUDE_MD}.bak"
+  ln -s "$TARGET" "$CLAUDE_MD"
+  echo "Created symlink: $CLAUDE_MD -> $TARGET"
 else
-  echo "$CLAUDE_MD already exists, skipping."
-  if ! grep -q '@~/brain/prompt.md' "$CLAUDE_MD"; then
-    tmpfile=$(mktemp)
-    { head -1 "$CLAUDE_MD"; printf '\n@~/brain/prompt.md\n'; tail -n +2 "$CLAUDE_MD"; } > "$tmpfile"
-    mv "$tmpfile" "$CLAUDE_MD"
-    echo "Added prompt.md import to $CLAUDE_MD"
-  fi
+  mkdir -p "$(dirname "$CLAUDE_MD")"
+  ln -s "$TARGET" "$CLAUDE_MD"
+  echo "Created symlink: $CLAUDE_MD -> $TARGET"
 fi
 
 # --- 5. Shell profiles ---
@@ -163,10 +154,10 @@ settings["env"]["BRAIN_DIR"] = brain_dir
 settings["hooks"] = {
     "SessionStart": [{"hooks": [{"name": "brain-sync-start", "type": "command",
         "command": "bash \$BRAIN_DIR/bin/gemini-brain-start.sh",
-        "description": "Pull latest brain repo", "timeout": 30000}]}],
+        "description": "Pull latest brain repo and show sync status", "timeout": 30000}]}],
     "SessionEnd": [{"hooks": [{"name": "brain-sync-end", "type": "command",
-        "command": "bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
-        "description": "Commit pending raw/ captures", "timeout": 60000}]}]
+        "command": "setsid bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
+        "description": "Commit any pending raw/ captures to brain repo", "timeout": 60000}]}]
 }
 
 with open(settings_path, "w") as f:
@@ -175,22 +166,19 @@ with open(settings_path, "w") as f:
 print("Updated ~/.gemini/settings.json with brain MCP, env vars, and hooks.")
 PYEOF
 
+  # Global GEMINI.md (symlink -> brain/gemini-global.md)
   GEMINI_MD="$HOME/.gemini/GEMINI.md"
-  if [[ ! -f "$GEMINI_MD" ]]; then
-    cat > "$GEMINI_MD" <<EOF
-@../brain/prompt.md
-
-# Brain System
-
-The brain-session skill is always active. Apply it in every session without being asked.
-/brain-status, /brain-sync, and /brain-dream are available as on-demand commands.
-
-Brain repo: \$BRAIN_DIR ($BRAIN_DIR)
-Brain MCP server: brain (filesystem access to the brain repo)
-EOF
-    echo "Created $GEMINI_MD"
+  GEMINI_TARGET="$BRAIN_DIR/gemini-global.md"
+  if [[ -L "$GEMINI_MD" && "$(readlink "$GEMINI_MD")" == "$GEMINI_TARGET" ]]; then
+    echo "$GEMINI_MD already symlinked to gemini-global.md, skipping."
+  elif [[ -e "$GEMINI_MD" || -L "$GEMINI_MD" ]]; then
+    mv "$GEMINI_MD" "${GEMINI_MD}.bak"
+    echo "Backed up existing $GEMINI_MD to ${GEMINI_MD}.bak"
+    ln -s "$GEMINI_TARGET" "$GEMINI_MD"
+    echo "Created symlink: $GEMINI_MD -> $GEMINI_TARGET"
   else
-    echo "$GEMINI_MD already exists, skipping."
+    ln -s "$GEMINI_TARGET" "$GEMINI_MD"
+    echo "Created symlink: $GEMINI_MD -> $GEMINI_TARGET"
   fi
 
   for skill_dir in "$BRAIN_DIR/skills"/*/; do

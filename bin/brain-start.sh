@@ -1,16 +1,25 @@
 #!/bin/bash
-# Runs at Claude Code session start via the SessionStart hook.
-# Syncs the brain repo so the session starts with current context.
+set -uo pipefail
+cd "$BRAIN_DIR"
 
-if [ -z "$BRAIN_DIR" ]; then
-  echo "BRAIN_DIR not set — skipping brain sync. Set it in ~/.claude/settings.json."
-  exit 0
+if ! git pull --rebase origin main 2>/dev/null; then
+  echo "BRAIN WARNING: git pull failed — working offline."
 fi
 
-cd "$BRAIN_DIR" || exit 0
+last_commit=$(git log --format="%H %s" | grep -m1 "chore(brain): local dream cycle" | awk '{print $1}' || true)
 
-if git pull --rebase origin main 2>&1 | tail -5; then
-  echo "Brain synced."
+if [[ -z "$last_commit" ]]; then
+  echo "BRAIN: No dream cycle on record. Run /brain-dream before starting work."
 else
-  echo "Brain sync failed (no network or remote not configured). Continuing with local state."
+  all=$(git log --name-only --diff-filter=A --pretty=format: "${last_commit}..HEAD" -- \
+    raw/ 2>/dev/null | { grep -E "\.md$" || true; })
+
+  fast=0; heavy=0
+  if [[ -n "$all" ]]; then
+    fast=$(echo "$all" | { grep -E "^raw/(captures|sessions)/" || true; } | wc -l | tr -d ' ')
+    heavy=$(echo "$all" | { grep -vE "^raw/(captures|sessions)/" || true; } | wc -l | tr -d ' ')
+  fi
+
+  if [[ "$fast" -gt 0 ]]; then echo "BRAIN: $fast capture/session files pending — run /brain-dream."; fi
+  if [[ "$heavy" -gt 0 ]]; then echo "BRAIN: $heavy ingest files pending — run /brain-dream."; fi
 fi

@@ -266,6 +266,8 @@ These rules apply to any agent writing or editing wiki pages — whether during 
 Raw data capture (how to populate `raw/`): see `/brain-ingest` skill
 Synthesis and lint (how to turn `raw/` into `wiki/`): see `/brain-dream` skill
 
+Always-active session rules (capture triggers, brain system instructions): see `claude-global.md` (Claude Code) and `gemini-global.md` (Gemini CLI)
+
 ---
 
 ## Agent Rules
@@ -285,12 +287,15 @@ Synthesis and lint (how to turn `raw/` into `wiki/`): see `/brain-dream` skill
 ```
 brain/
 +-- CLAUDE.md                          # This file. Read first.
-+-- prompt.md                          # Global prompt injected into all Claude Code sessions.
++-- claude-global.md                   # Symlinked from ~/.claude/CLAUDE.md — brain rules + @index.md include.
++-- gemini-global.md                   # Symlinked from ~/.gemini/GEMINI.md — same rules, Gemini-relative @includes.
++-- prompt.md                          # Global prompt injected into all sessions.
 +-- config.yml                         # Runtime config. Edit here, not in workflows.
 +-- index.md                           # Master content index. LLM-maintained.
 +-- log.md                             # Append-only operation log.
 +-- raw/
-|   +-- sessions/                      # All session captures
+|   +-- sessions/                      # Session records written by brain-end.sh at session close
+|   +-- captures/                      # Single-item captures written during sessions (decisions, questions, arch positions)
 |   +-- tickets/                       # Nightly Jira pull
 |   +-- slack/                         # Slack saved items + monitored channels
 |   +-- gmail/                         # Targeted Gmail capture (personal email)
@@ -316,13 +321,16 @@ brain/
 |   +-- week-notes/
 +-- templates/
 +-- skills/
-|   +-- brain-session/SKILL.md
 |   +-- brain-dream/SKILL.md
 |   +-- brain-ingest/SKILL.md
 |   +-- brain-status/SKILL.md
 |   +-- brain-sync/SKILL.md
 +-- bin/
-|   +-- brain-start.sh           # SessionStart hook — git pull
-|   +-- brain-end.sh             # SessionEnd hook — auto-commit raw/ captures
+|   +-- brain-start.sh                 # Claude Code SessionStart hook
+|   +-- brain-end.sh                   # Claude Code SessionEnd hook (use setsid)
+|   +-- gemini-brain-start.sh          # Gemini CLI SessionStart hook
+|   +-- gemini-brain-end.sh            # Gemini CLI SessionEnd hook (use setsid)
+|   +-- install.sh                     # One-time setup: hooks, MCP, skills, CLAUDE.md symlink
+|   +-- setup-check.sh                 # Post-install verification
 +-- .github/workflows/
 ```
