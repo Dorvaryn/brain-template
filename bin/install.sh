@@ -47,7 +47,11 @@ def has_hook(hooks_list, cmd):
     return any(h.get("command") == cmd for entry in hooks_list for h in entry.get("hooks", []))
 
 settings.setdefault("hooks", {})
-for event, script in [("SessionStart", "brain-start.sh"), ("SessionEnd", "brain-end.sh")]:
+for event, script in [
+    ("SessionStart", "brain-start.sh"),
+    ("Stop",         "brain-stop.sh"),
+    ("SessionEnd",   "brain-end.sh"),
+]:
     # brain-end.sh must use setsid so it survives Claude Code's process group teardown
     prefix = "setsid bash" if script == "brain-end.sh" else "bash"
     cmd = f"{prefix} \$BRAIN_DIR/bin/{script}"

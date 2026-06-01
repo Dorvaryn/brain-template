@@ -7,7 +7,7 @@ Read `$BRAIN_DIR/CLAUDE.md` and `$BRAIN_DIR/config.yml` before starting.
 
 ## 1. Determine scope
 
-- **Default:** files in `raw/` added or modified in git since the last `dream-cycle` entry in `log.md`. Fall back to filesystem mtime if git is unavailable.
+- **Default:** files in `raw/captures/`, `raw/inbox/`, and all other `raw/` subdirectories added or modified in git since the last `dream-cycle` entry in `log.md`. Fall back to filesystem mtime if git is unavailable.
   - Newly added files: process normally.
   - Modified files (M): flag as "caution: previously ingested — check for new content vs. tooling artefact" but still process.
 - **`--full`:** all files in `raw/` (excluding `.gitkeep`). Warn and wait for explicit confirmation before continuing.
@@ -18,7 +18,7 @@ Report scope: `Processing N files [since YYYY-MM-DD | full reprocess]`
 
 ## 2. For each file in scope — synthesis
 
-Identify source type from path: `session | ticket | slack | gmail | outlook | outlook-calendar | google-calendar | confluence | reading | inbox | cowork | transcript`
+Identify source type from path: `capture | ticket | slack | gmail | outlook | outlook-calendar | google-calendar | confluence | reading | inbox | cowork | transcript`
 
 ### 2a. Extract from all source types
 Extract: decisions, questions, architectural positions, projects referenced, people mentioned, epics, technical topics, travel plans, life admin items.
@@ -40,7 +40,7 @@ Route to area based on config.yml `outlook_calendar.calendars`.
 - `TENTATIVE` = pending owner's priority review; do not infer attendance either way
 - `ACCEPTED` = attending
 - `DECLINED` = not attending; reason may be automatic (conflict, OOO) or deliberate — do not over-interpret
-- Transcripts (`raw/transcripts/`) and session notes (`raw/sessions/`) are the ground truth for actual attendance; if a transcript exists for an event, the owner attended regardless of RSVP state
+- Transcripts (`raw/transcripts/`) are the ground truth for actual attendance; if a transcript exists for an event, the owner attended regardless of RSVP state
 
 ### 2e. Gmail captures (`raw/gmail/`)
 Route to area based on config.yml `gmail.capture_filters`. Note: personal email = Gmail; work email = Outlook.
@@ -74,8 +74,11 @@ Store message permalink as `slack_ref` in frontmatter of any wiki page created o
 ### 2k. Transcript captures (`raw/transcripts/`)
 Extract decisions, technical discussion outcomes, and action items. Update relevant project and architecture pages. Note attendees and date.
 
-### 2l. Session captures (`raw/sessions/`)
-Extract decisions, actions, and context. Update relevant project, people, and architecture pages.
+### 2l. Inline captures (`raw/captures/`)
+Single-item files written during sessions by always-active capture rules. Each file has frontmatter
+(`source: capture`, `timestamp`, `repo`, `cwd`) and a body describing one decision, question, or
+architectural position. Process directly — frontmatter reduces ambiguity. Route to the appropriate
+wiki page as with other source types.
 
 ### 2m. For each extracted item
 Find or create the appropriate wiki page. Update content and append to the Log section.

@@ -294,7 +294,6 @@ brain/
 +-- index.md                           # Master content index. LLM-maintained.
 +-- log.md                             # Append-only operation log.
 +-- raw/
-|   +-- sessions/                      # Session records written by brain-end.sh at session close
 |   +-- captures/                      # Single-item captures written during sessions (decisions, questions, arch positions)
 |   +-- tickets/                       # Nightly Jira pull
 |   +-- slack/                         # Slack saved items + monitored channels
