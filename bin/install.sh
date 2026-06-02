@@ -161,7 +161,10 @@ settings["hooks"] = {
         "description": "Pull latest brain repo and show sync status", "timeout": 30000}]}],
     "SessionEnd": [{"hooks": [{"name": "brain-sync-end", "type": "command",
         "command": "setsid bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
-        "description": "Commit any pending raw/ captures to brain repo", "timeout": 60000}]}]
+        "description": "Commit any pending raw/ captures to brain repo", "timeout": 60000}]}],
+    "PostInvocation": [{"hooks": [{"name": "brain-capture-reminder", "type": "command",
+        "command": "bash \$BRAIN_DIR/bin/gemini-brain-post.sh",
+        "description": "Per-turn reminder to capture confirmed decisions and open questions", "timeout": 5000}]}]
 }
 
 with open(settings_path, "w") as f:
