@@ -13,7 +13,8 @@ if [[ ! -f "$FLAG" ]]; then
 import json
 print(json.dumps({
   'decision': 'block',
-  'reason': 'BRAIN: Before stopping, check this turn for anything worth capturing: decisions the user CONFIRMED (not plans you proposed), open questions identified, architectural positions the user agreed to, or evaluation findings accepted. Do NOT capture plans pending approval or options you presented but the user has not yet endorsed. Write captures now, or confirm nothing to capture.'
+  'reason': 'BRAIN: End-of-turn capture check — follow Brain Capture (always active) rules in CLAUDE.md. Write captures now, or confirm nothing to capture.',
+  'suppressOutput': True
 }))
 "
 else

@@ -76,18 +76,19 @@ echo ""
 
 # ── 3. Hook scripts ──────────────────────────────────────────────────────────
 
-for script in brain-start.sh brain-end.sh; do
+for script in brain-start.sh brain-stop.sh brain-end.sh \
+              gemini-brain-start.sh gemini-brain-post.sh gemini-brain-end.sh; do
   path="${BRAIN_DIR}/bin/${script}"
   if [ -z "$BRAIN_DIR" ]; then
     warn "Skipping $script check (BRAIN_DIR not set)"
   elif [ ! -f "$path" ]; then
     fail "$script not found at $path" \
       "Re-clone the brain template or copy bin/$script from the repo"
-  elif [ ! -x "$path" ]; then
+  elif [[ "$script" == *.sh ]] && [ ! -x "$path" ]; then
     fail "$script exists but is not executable" \
       "Run: chmod +x $path"
   else
-    ok "$script exists and is executable"
+    ok "$script exists"
   fi
 done
 
@@ -114,14 +115,21 @@ else
     ok "SessionStart hook configured"
   else
     fail "SessionStart hook missing from settings.json" \
-      "Add the hooks block from the README (bin/brain-start.sh)"
+      "Run install.sh to register brain-start.sh"
+  fi
+
+  if json_has "$SETTINGS" "brain-stop.sh"; then
+    ok "Stop hook configured (brain-stop.sh)"
+  else
+    fail "Stop hook missing from settings.json" \
+      "Run install.sh to register brain-stop.sh"
   fi
 
   if json_has "$SETTINGS" "SessionEnd"; then
     ok "SessionEnd hook configured"
   else
     fail "SessionEnd hook missing from settings.json" \
-      "Add the hooks block from the README (bin/brain-end.sh)"
+      "Run install.sh to register brain-end.sh"
   fi
 fi
 
@@ -179,6 +187,82 @@ if [ -n "$BRAIN_DIR" ] && [ -f "$BRAIN_DIR/CLAUDE.md" ]; then
   else
     ok "CLAUDE.md Identity section has been filled in"
   fi
+fi
+
+echo ""
+
+# ── 8. Gemini CLI & Antigravity CLI ──────────────────────────────────────────
+
+GEMINI_SETTINGS="$HOME/.gemini/settings.json"
+AGY_MCP_CONFIG="$HOME/.gemini/config/mcp_config.json"
+AGY_HOOKS_CONFIG="$HOME/.gemini/config/hooks.json"
+GEMINI_MD="$HOME/.gemini/GEMINI.md"
+GEMINI_SKILLS="$HOME/.gemini/skills"
+
+if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
+  ok "Gemini/Antigravity CLI is installed"
+
+  # Check settings / mcp_config for brain MCP
+  mcp_ok=0
+  if [ -f "$GEMINI_SETTINGS" ] && json_has "$GEMINI_SETTINGS" '"brain"'; then
+    mcp_ok=1
+  fi
+  if [ -f "$AGY_MCP_CONFIG" ] && json_has "$AGY_MCP_CONFIG" '"brain"'; then
+    mcp_ok=1
+  fi
+
+  if [ $mcp_ok -eq 1 ]; then
+    ok "Brain MCP server configured (Gemini/Antigravity)"
+  else
+    fail "Brain MCP server not configured for Gemini/Antigravity" \
+      "Run install.sh to configure it"
+  fi
+
+  # Check hooks (PreInvocation start + PostInvocation reminder + Stop end)
+  AGY_HOOKS_FILE=""
+  [ -f "$AGY_HOOKS_CONFIG" ] && AGY_HOOKS_FILE="$AGY_HOOKS_CONFIG"
+  [ -z "$AGY_HOOKS_FILE" ] && [ -f "$GEMINI_SETTINGS" ] && AGY_HOOKS_FILE="$GEMINI_SETTINGS"
+
+  if [ -n "$AGY_HOOKS_FILE" ] && json_has "$AGY_HOOKS_FILE" "gemini-brain-start.sh"; then
+    ok "PreInvocation (startup) hook configured"
+  else
+    fail "PreInvocation startup hook not configured" \
+      "Run install.sh to configure gemini-brain-start.sh"
+  fi
+
+  if [ -n "$AGY_HOOKS_FILE" ] && json_has "$AGY_HOOKS_FILE" "gemini-brain-post.sh"; then
+    ok "PostInvocation (capture reminder) hook configured"
+  else
+    fail "PostInvocation capture reminder hook not configured" \
+      "Run install.sh to configure gemini-brain-post.sh"
+  fi
+
+  if [ -n "$AGY_HOOKS_FILE" ] && json_has "$AGY_HOOKS_FILE" "gemini-brain-end.sh"; then
+    ok "Stop (session end) hook configured"
+  else
+    fail "Stop session end hook not configured" \
+      "Run install.sh to configure gemini-brain-end.sh"
+  fi
+
+  # Check global GEMINI.md
+  if [ -L "$GEMINI_MD" ]; then
+    ok "Global GEMINI.md symlink exists"
+  else
+    warn "Global GEMINI.md symlink missing" \
+      "Run install.sh to symlink ~/.gemini/GEMINI.md to brain/gemini-global.md"
+  fi
+
+  # Check skills
+  for skill in brain-dream brain-ingest brain-status brain-sync; do
+    if [ -e "$GEMINI_SKILLS/$skill" ]; then
+      ok "Gemini skill registered: $skill"
+    else
+      fail "Gemini skill not registered: $skill" \
+        "Run install.sh to register skills"
+    fi
+  done
+else
+  warn "Gemini/Antigravity CLI not installed, skipping these checks"
 fi
 
 echo ""

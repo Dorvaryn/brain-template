@@ -36,6 +36,7 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     settings = {}
 
+# Env vars
 settings.setdefault("env", {})
 if settings["env"].get("BRAIN_DIR") == brain_dir:
     print("  BRAIN_DIR already set in settings.json, skipping.")
@@ -43,6 +44,7 @@ else:
     settings["env"]["BRAIN_DIR"] = brain_dir
     print(f"  Set BRAIN_DIR={brain_dir} in ~/.claude/settings.json")
 
+# Session hooks
 def has_hook(hooks_list, cmd):
     return any(h.get("command") == cmd for entry in hooks_list for h in entry.get("hooks", []))
 
@@ -112,36 +114,22 @@ else
   echo "Created symlink: $CLAUDE_MD -> $TARGET"
 fi
 
-# --- 5. Shell profiles ---
+# --- 5. Gemini / Antigravity CLI setup ---
 echo ""
-echo "Configuring shell profiles..."
-
-append_if_missing() {
-  local file="$1" marker="$2" line="$3"
-  if [[ -f "$file" ]] && grep -qF "$marker" "$file"; then
-    echo "  $file: BRAIN_DIR already set, skipping."
-  elif [[ -f "$file" ]]; then
-    printf '\n# brain\n%s\n' "$line" >> "$file"
-    echo "  $file: added BRAIN_DIR."
-  fi
-}
-
-append_if_missing "$HOME/.bashrc"       "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
-append_if_missing "$HOME/.bash_profile" "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
-append_if_missing "$HOME/.zshrc"        "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
-append_if_missing "$HOME/.zshenv"       "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
-
-# --- 6. Gemini CLI setup (optional) ---
-echo ""
-if command -v gemini &>/dev/null; then
+if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
   mkdir -p "$HOME/.gemini"
+  mkdir -p "$HOME/.gemini/config"
 
+  # Update ~/.gemini/settings.json, ~/.gemini/config/mcp_config.json and ~/.gemini/config/hooks.json
   python3 - <<PYEOF
 import json, os
 
 settings_path = os.path.expanduser("~/.gemini/settings.json")
+mcp_config_path = os.path.expanduser("~/.gemini/config/mcp_config.json")
+hooks_config_path = os.path.expanduser("~/.gemini/config/hooks.json")
 brain_dir = "$BRAIN_DIR"
 
+# 1. Update ~/.gemini/settings.json (legacy Gemini settings)
 try:
     with open(settings_path) as f:
         settings = json.load(f)
@@ -155,22 +143,101 @@ settings["mcpServers"]["brain"] = {
 }
 settings.setdefault("env", {})
 settings["env"]["BRAIN_DIR"] = brain_dir
+
 settings["hooks"] = {
-    "SessionStart": [{"hooks": [{"name": "brain-sync-start", "type": "command",
-        "command": "bash \$BRAIN_DIR/bin/gemini-brain-start.sh",
-        "description": "Pull latest brain repo and show sync status", "timeout": 30000}]}],
-    "SessionEnd": [{"hooks": [{"name": "brain-sync-end", "type": "command",
-        "command": "setsid bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
-        "description": "Commit any pending raw/ captures to brain repo", "timeout": 60000}]}],
-    "PostInvocation": [{"hooks": [{"name": "brain-capture-reminder", "type": "command",
-        "command": "bash \$BRAIN_DIR/bin/gemini-brain-post.sh",
-        "description": "Per-turn reminder to capture confirmed decisions and open questions", "timeout": 5000}]}]
+    "PreInvocation": [{
+        "hooks": [{
+            "name": "brain-sync-start",
+            "type": "command",
+            "command": "bash \$BRAIN_DIR/bin/gemini-brain-start.sh",
+            "description": "Pull latest brain repo and show sync status",
+            "timeout": 30000
+        }]
+    }],
+    "PostInvocation": [{
+        "hooks": [{
+            "name": "brain-capture-reminder",
+            "type": "command",
+            "command": "bash \$BRAIN_DIR/bin/gemini-brain-post.sh",
+            "description": "Remind agent to capture decisions",
+            "timeout": 5000
+        }]
+    }],
+    "Stop": [{
+        "hooks": [{
+            "name": "brain-sync-end",
+            "type": "command",
+            "command": "setsid bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
+            "description": "Commit any pending raw/ captures to brain repo",
+            "timeout": 60000
+        }]
+    }]
 }
 
 with open(settings_path, "w") as f:
     json.dump(settings, f, indent=2)
     f.write("\n")
 print("Updated ~/.gemini/settings.json with brain MCP, env vars, and hooks.")
+
+# 2. Update ~/.gemini/config/mcp_config.json (Antigravity custom MCP config)
+try:
+    with open(mcp_config_path) as f:
+        mcp_config = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    mcp_config = {}
+
+mcp_config.setdefault("mcpServers", {})
+mcp_config["mcpServers"]["brain"] = {
+    "command": "bash",
+    "args": ["-c", 'npx -y @modelcontextprotocol/server-filesystem "\$BRAIN_DIR"']
+}
+
+with open(mcp_config_path, "w") as f:
+    json.dump(mcp_config, f, indent=2)
+    f.write("\n")
+print("Updated ~/.gemini/config/mcp_config.json with brain MCP server.")
+
+# 3. Update ~/.gemini/config/hooks.json (Antigravity hooks config)
+try:
+    with open(hooks_config_path) as f:
+        hooks_config = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    hooks_config = {}
+
+hooks_config["hooks"] = {
+    "PreInvocation": [{
+        "hooks": [{
+            "name": "brain-sync-start",
+            "type": "command",
+            "command": "bash \$BRAIN_DIR/bin/gemini-brain-start.sh",
+            "description": "Pull latest brain repo and show sync status",
+            "timeout": 30000
+        }]
+    }],
+    "PostInvocation": [{
+        "hooks": [{
+            "name": "brain-capture-reminder",
+            "type": "command",
+            "command": "bash \$BRAIN_DIR/bin/gemini-brain-post.sh",
+            "description": "Remind agent to capture decisions",
+            "timeout": 5000
+        }]
+    }],
+    "Stop": [{
+        "hooks": [{
+            "name": "brain-sync-end",
+            "type": "command",
+            "command": "setsid bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
+            "description": "Commit any pending raw/ captures to brain repo",
+            "timeout": 60000
+        }]
+    }]
+}
+
+with open(hooks_config_path, "w") as f:
+    json.dump(hooks_config, f, indent=2)
+    f.write("\n")
+print("Updated ~/.gemini/config/hooks.json with PreInvocation, PostInvocation, and Stop hooks.")
 PYEOF
 
   # Global GEMINI.md (symlink -> brain/gemini-global.md)
@@ -188,16 +255,94 @@ PYEOF
     echo "Created symlink: $GEMINI_MD -> $GEMINI_TARGET"
   fi
 
+  # Link brain skills to Gemini/Antigravity CLI (using CLI-agnostic symlinks)
+  mkdir -p "$HOME/.gemini/skills"
   for skill_dir in "$BRAIN_DIR/skills"/*/; do
     skill="$(basename "$skill_dir")"
-    if [[ -d "$HOME/.gemini/skills/$skill" ]]; then
-      echo "Skill $skill already linked (Gemini CLI)."
+    if [[ -L "$HOME/.gemini/skills/$skill" || -d "$HOME/.gemini/skills/$skill" ]]; then
+      echo "Skill $skill already linked (Gemini/Antigravity)."
     else
-      echo "Y" | gemini skills link "$skill_dir" 2>/dev/null && echo "Linked skill: $skill (Gemini CLI)"
+      ln -s "$skill_dir" "$HOME/.gemini/skills/$skill"
+      echo "Linked skill: $skill (Gemini/Antigravity)"
     fi
   done
 else
-  echo "gemini CLI not found -- skipping Gemini CLI setup (re-run install.sh if you add it later)."
+  echo "Neither gemini nor agy CLI was found -- skipping Gemini/Antigravity setup."
+  echo "Install Gemini/Antigravity CLI and re-run install.sh."
+fi
+
+# --- 6. Windows Claude desktop app (WSL only) ---
+echo ""
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+  if [[ -n "$WIN_USER" ]]; then
+    CLAUDE_DESKTOP_CONFIG="/mnt/c/Users/$WIN_USER/AppData/Roaming/Claude/claude_desktop_config.json"
+    if [[ -f "$CLAUDE_DESKTOP_CONFIG" ]]; then
+      python3 - <<PYEOF
+import json
+
+config_path = "$CLAUDE_DESKTOP_CONFIG"
+brain_dir = "$BRAIN_DIR"
+
+try:
+    with open(config_path) as f:
+        config = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    config = {}
+
+config.setdefault("mcpServers", {})
+if "brain" in config["mcpServers"]:
+    print("Brain MCP server already configured in Windows Claude desktop app.")
+else:
+    config["mcpServers"]["brain"] = {
+        "command": "wsl",
+        "args": ["bash", "-c", 'npx -y @modelcontextprotocol/server-filesystem "$BRAIN_DIR"']
+    }
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+        f.write("\n")
+    print("Brain MCP server added to Windows Claude desktop app.")
+PYEOF
+    else
+      echo "Windows Claude desktop config not found -- is the app installed?"
+      echo "  Expected: $CLAUDE_DESKTOP_CONFIG"
+    fi
+  else
+    echo "Could not detect Windows username -- skipping Windows Claude desktop app setup."
+  fi
+else
+  echo "Not running on WSL -- skipping Windows Claude desktop app setup."
+fi
+
+# --- 7. Shell profiles ---
+echo ""
+echo "Configuring shell profiles..."
+
+append_if_missing() {
+  local file="$1" marker="$2" line="$3"
+  if [[ -f "$file" ]] && grep -qF "$marker" "$file"; then
+    echo "  $file: BRAIN_DIR already set, skipping."
+  elif [[ -f "$file" ]]; then
+    printf '\n# brain\n%s\n' "$line" >> "$file"
+    echo "  $file: added BRAIN_DIR."
+  fi
+}
+
+# bash
+append_if_missing "$HOME/.bashrc"       "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
+append_if_missing "$HOME/.bash_profile" "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
+
+# zsh
+append_if_missing "$HOME/.zshrc"  "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
+append_if_missing "$HOME/.zshenv" "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
+
+# nushell
+NU_ENV="$HOME/.config/nushell/env.nu"
+if [[ -f "$NU_ENV" ]] && grep -q "BRAIN_DIR" "$NU_ENV"; then
+  echo "  $NU_ENV: BRAIN_DIR already set, skipping."
+elif [[ -f "$NU_ENV" ]]; then
+  printf '\n# brain\n\$env.BRAIN_DIR = "%s"\n' "$BRAIN_DIR" >> "$NU_ENV"
+  echo "  $NU_ENV: added BRAIN_DIR."
 fi
 
 echo ""

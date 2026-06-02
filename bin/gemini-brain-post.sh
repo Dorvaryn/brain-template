@@ -4,7 +4,7 @@ python3 -c "
 import json
 print(json.dumps({
   'injectSteps': [{
-    'ephemeralMessage': 'BRAIN: Review the previous turn. If the user CONFIRMED a decision, agreed to an architectural position, or an open question was identified — write a capture file to ~/brain/raw/captures/YYYY-MM-DD-[topic].md before continuing. Do NOT capture plans you proposed that are pending approval, or options you presented that have not been endorsed.'
+    'ephemeralMessage': 'BRAIN: End-of-turn capture check — follow Brain Capture (always active) rules in GEMINI.md. Write captures now, or confirm nothing to capture.'
   }]
 }))
 "
