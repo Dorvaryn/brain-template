@@ -70,15 +70,20 @@ status:
   leadership/personal: discovery|active|paused|decided|complete|abandoned
 started: date
 jira_epics: list
-milestones:
-  - label: string
-    status: pending|active|complete
-    date: date
 slack_refs: list
 ---
 ```
 
-Use `jira_epics` for delivery projects. Use `milestones` for leadership/personal projects.
+Use `jira_epics` for delivery projects.
+
+Milestones live in the **body**, not frontmatter. Add a `### Milestones` checklist at the top of `## Detail`:
+```markdown
+### Milestones
+
+- [x] Milestone complete — YYYY-MM-DD
+- [ ] Milestone pending
+```
+Checkbox convention: `[x]` = complete, `[ ]` = not yet complete. Include date only when known. Labels containing `#` (e.g. PR numbers) are safe in markdown but must be quoted in YAML — keep them in the body only.
 
 ### decisions/ [slug].md
 

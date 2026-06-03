@@ -77,6 +77,8 @@ echo ""
 # ── 3. Hook scripts ──────────────────────────────────────────────────────────
 
 for script in brain-start.sh brain-stop.sh brain-end.sh \
+              ai-statusline.sh ai-statusline-brain.sh ai-statusline-calendar.sh \
+              agy-statusline.sh agy-statusline.py \
               gemini-brain-start.sh gemini-brain-post.sh gemini-brain-end.sh; do
   path="${BRAIN_DIR}/bin/${script}"
   if [ -z "$BRAIN_DIR" ]; then
@@ -130,6 +132,13 @@ else
   else
     fail "SessionEnd hook missing from settings.json" \
       "Run install.sh to register brain-end.sh"
+  fi
+
+  if json_has "$SETTINGS" "ai-statusline.sh"; then
+    ok "statusLine configured (ai-statusline.sh)"
+  else
+    fail "statusLine not configured in settings.json" \
+      "Run install.sh to configure ai-statusline.sh"
   fi
 fi
 
@@ -242,6 +251,15 @@ if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
   else
     fail "Stop session end hook not configured" \
       "Run install.sh to configure gemini-brain-end.sh"
+  fi
+
+  # Check agy antigravity statusLine
+  AGY_CLI_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
+  if [ -f "$AGY_CLI_SETTINGS" ] && json_has "$AGY_CLI_SETTINGS" "agy-statusline.sh"; then
+    ok "agy statusLine configured (agy-statusline.sh)"
+  else
+    fail "agy statusLine not configured" \
+      "Run install.sh to configure ~/.gemini/antigravity-cli/settings.json"
   fi
 
   # Check global GEMINI.md

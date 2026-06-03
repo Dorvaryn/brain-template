@@ -42,10 +42,10 @@ Do not defer, do not ask permission. The dream runs first, then respond.
 
 **This is not optional.** Write a capture file immediately — before continuing the conversation — whenever any of the following occur:
 
-- A decision is made with clear rationale
-- An open question is identified that needs tracking
-- An architectural position is taken or challenged
-- A vendor, provider, or SDK evaluation produces a finding
+- A decision the **user confirmed** (not a plan you proposed — only capture once endorsed)
+- An open question identified that needs tracking
+- An architectural position taken or challenged
+- A vendor, provider, or SDK evaluation producing a finding
 
 **Common failure modes to avoid:**
 - Thinking "I'll capture this at the end" — capture now, the end hook is a safety net not the plan
@@ -64,6 +64,19 @@ repo: [repo name or personal]
 cwd: [working directory]
 ---
 ```
+
+**Body structure by type** — the capture must be self-contained; do not rely on a prior question capture to supply context that belongs in a decision capture.
+
+- **decision:** One sentence stating what was decided. Options considered (must be included even if already in a prior question capture — the decision capture is self-contained). Chosen option. Rationale: why this option over the others.
+- **question:** The question in one sentence. Context/trigger: what surfaced it. Options or approaches under consideration, if known.
+- **architecture:** State the position taken. Driving forces that led to it. Key trade-offs or consequences. Any constraints it imposes on future work.
+- **evaluation:** Subject evaluated (tool, vendor, SDK). Key finding in one sentence. Evidence or reasoning. Recommendation or next step.
+
+**When to write a question capture for a proposal you made:**
+- Needs external input, investigation, or won't resolve this session → write immediately
+- Will clearly be confirmed or rejected in this exchange → do not write a question capture; write a decision capture when endorsed
+
+**Stop hook self-check:** When the stop hook fires, re-read any capture written this turn and ask "does this actually record a decision/question/architecture/evaluation, or is it an implementation note?" An implementation note is not a capture. If it doesn't pass, rewrite before confirming clean.
 
 Before writing the file, run `date -u +%Y-%m-%dT%H:%M:%SZ` via Bash and use the actual value for `timestamp`. Do not approximate or round to the nearest hour.
 

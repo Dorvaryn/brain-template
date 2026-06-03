@@ -6,3 +6,5 @@
 .gemini/
 *.swp
 *.swo
+.claude/
+.antigravitycli/

@@ -346,4 +346,64 @@ elif [[ -f "$NU_ENV" ]]; then
 fi
 
 echo ""
+echo "---"
+echo "brain-template sync setup (optional)"
+echo "  The brain-sync-template skill needs to know where brain-template is checked out."
+read -r -p "  Path to brain-template repo (leave blank to skip): " BRAIN_TEMPLATE_DIR_INPUT
+
+if [[ -n "$BRAIN_TEMPLATE_DIR_INPUT" ]]; then
+  # Expand tilde manually (double-quoting prevents shell tilde expansion)
+  BRAIN_TEMPLATE_DIR_EXPANDED="${BRAIN_TEMPLATE_DIR_INPUT/#\~/$HOME}"
+  BRAIN_TEMPLATE_DIR_RESOLVED=$(cd "$BRAIN_TEMPLATE_DIR_EXPANDED" 2>/dev/null && pwd) || true
+  # Use safe.directory=* to handle WSL /mnt/c/ ownership mismatches
+  if [[ -z "$BRAIN_TEMPLATE_DIR_RESOLVED" ]] || ! git -C "$BRAIN_TEMPLATE_DIR_RESOLVED" -c safe.directory='*' rev-parse HEAD &>/dev/null; then
+    echo "  Warning: '$BRAIN_TEMPLATE_DIR_INPUT' is not a valid git repo — skipping BRAIN_TEMPLATE_DIR setup."
+    echo "  Re-run install.sh after cloning brain-template, or set BRAIN_TEMPLATE_DIR manually."
+  else
+    # Claude Code settings.json
+    python3 - <<PYEOF
+import json, os
+
+settings_path = os.path.expanduser("~/.claude/settings.json")
+val = "$BRAIN_TEMPLATE_DIR_RESOLVED"
+
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+
+settings.setdefault("env", {})
+if settings["env"].get("BRAIN_TEMPLATE_DIR") == val:
+    print("  BRAIN_TEMPLATE_DIR already set in settings.json, skipping.")
+else:
+    settings["env"]["BRAIN_TEMPLATE_DIR"] = val
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    print(f"  Set BRAIN_TEMPLATE_DIR={val} in ~/.claude/settings.json")
+PYEOF
+
+    # Shell profiles
+    append_if_missing "$HOME/.bashrc"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
+    append_if_missing "$HOME/.bash_profile" "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
+    append_if_missing "$HOME/.zshrc"        "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
+    append_if_missing "$HOME/.zshenv"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
+
+    NU_ENV="$HOME/.config/nushell/env.nu"
+    if [[ -f "$NU_ENV" ]] && grep -q "BRAIN_TEMPLATE_DIR" "$NU_ENV"; then
+      echo "  $NU_ENV: BRAIN_TEMPLATE_DIR already set, skipping."
+    elif [[ -f "$NU_ENV" ]]; then
+      printf '\n# brain-template\n$env.BRAIN_TEMPLATE_DIR = "%s"\n' "$BRAIN_TEMPLATE_DIR_RESOLVED" >> "$NU_ENV"
+      echo "  $NU_ENV: added BRAIN_TEMPLATE_DIR."
+    fi
+
+    echo "  BRAIN_TEMPLATE_DIR=$BRAIN_TEMPLATE_DIR_RESOLVED configured."
+    echo "  Run /brain-sync-template to sync infrastructure files to the template."
+  fi
+else
+  echo "  Skipped. Set BRAIN_TEMPLATE_DIR manually or re-run install.sh when ready."
+fi
+
+echo ""
 echo "Install complete. Run 'bash $BRAIN_DIR/bin/setup-check.sh' to verify."
