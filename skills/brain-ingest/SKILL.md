@@ -6,6 +6,7 @@ description: Run available capture sources and write to raw/ directories. In Cla
 Read `$BRAIN_DIR/CLAUDE.md` and `$BRAIN_DIR/config.yml` before starting.
 Read `config.yml` owner.name — this is "the owner" in all queries below.
 Today's date for filenames: use `date -u +%Y-%m-%d` via Bash.
+Run timestamp for log entries: capture `date -u +%Y-%m-%dT%H:%MZ` via Bash at start and use it for all log.md entries written in "After all captures".
 
 Run each capture in order. For each: write output to the appropriate raw/ file,
 then report what was captured.
@@ -90,7 +91,7 @@ Content: [full canvas text]
 ```
 
 ### Saved items
-- Fetch all saved items not yet in raw/slack/ (compare against last slack-capture log entry)
+- Fetch saved items since the last slack-capture log entry: find the most recent `slack-capture` line in `log.md` (format: `## [YYYY-MM-DDTHH:MMZ] slack-capture | ...`), extract the date portion (`YYYY-MM-DD`), and use it as an `after:YYYY-MM-DD` filter in the search query (e.g. `is:saved after:2026-06-01`). The Slack search API accepts date only — time precision is not available here. If no prior slack-capture log entry exists, fetch all saved items.
 - For each: fetch message content and thread context, note permalink
 - Area: infer from channel name using config.yml channel list
 
@@ -125,7 +126,8 @@ Content: [thread summary]
 Uses: Microsoft 365 MCP (outlook_email_search)
 Reads: `config.yml` outlook.capture_filters (skip if section absent or empty)
 
-- For each filter: search emails matching the query received since last outlook-capture log entry
+- Determine lookback threshold: find the most recent `outlook-capture` line in `log.md` (format: `## [YYYY-MM-DDTHH:MMZ] outlook-capture | ...`) and extract the full ISO timestamp. Pass this to `outlook_email_search` as the received-after datetime filter — use the full timestamp, not just the date, to avoid re-fetching emails received earlier in the same day as the last ingest. If no prior outlook-capture log entry exists, fall back to 24h lookback.
+- For each filter: search emails matching the query received since that threshold
 - Skip any email that contains financial data, invoice details, or purchase order information
 - **For any "vendor" or external-contact filter:** apply judgment — only capture direct correspondence
   (replies, proposals, follow-ups, introductions). Skip marketing emails, newsletters,
@@ -277,6 +279,7 @@ Reads: `config.yml` confluence.capture_pages (skip if section absent or empty)
     `confluence-capture` log entry in `log.md`:
     `ancestor = "[page_id]" AND lastModified >= "YYYY-MM-DD"`
     (on first run — no prior entry — omit the `lastModified` clause to capture all pages)
+  - Timestamp threshold: find the most recent `confluence-capture` line in `log.md` (format: `## [YYYY-MM-DDTHH:MMZ] confluence-capture | ...`) and extract the date portion (`YYYY-MM-DD`) for the CQL filter. CQL `lastModified` accepts date only.
 
 **For each returned page — version-aware capture:**
 
@@ -321,6 +324,18 @@ Last Modified: [date]
 ---
 
 ## After all captures
+
+Write one log.md entry per source that ran (or was attempted), using the run timestamp captured at start. Append to `$BRAIN_DIR/log.md`:
+
+```
+## [YYYY-MM-DDTHH:MMZ] jira-capture | brief summary (e.g. "N issues/epics")
+## [YYYY-MM-DDTHH:MMZ] slack-capture | brief summary (e.g. "N saved items + N threads")
+## [YYYY-MM-DDTHH:MMZ] outlook-capture | brief summary (e.g. "N emails")
+## [YYYY-MM-DDTHH:MMZ] calendar-capture | brief summary (e.g. "N full, N compact, N skipped")
+## [YYYY-MM-DDTHH:MMZ] confluence-capture | brief summary (e.g. "N pages")
+```
+
+Omit any source that was skipped entirely (not just empty). Mark failed sources: `## [YYYY-MM-DDTHH:MMZ] jira-capture | FAILED after retry: [error]`
 
 Report:
 ```

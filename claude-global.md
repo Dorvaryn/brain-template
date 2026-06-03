@@ -72,6 +72,8 @@ cwd: [working directory]
 ---
 ```
 
+Before writing the file, run `date -u +%Y-%m-%dT%H:%M:%SZ` via Bash and use the actual value for `timestamp`. Do not approximate or round to the nearest hour.
+
 Do not ask permission. Do not announce it. Just write it and continue.
 
 ### End of session / context switch

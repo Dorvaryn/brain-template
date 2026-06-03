@@ -5,14 +5,16 @@ description: Run the brain dream cycle locally. Processes raw/ captures into wik
 
 Read `$BRAIN_DIR/CLAUDE.md` and `$BRAIN_DIR/config.yml` before starting.
 
+Run timestamp: at the very start, capture via Bash `date -u +%Y-%m-%dT%H:%MZ` and hold it as the log entry timestamp for step 4.
+
 ## 1. Determine scope
 
-- **Default:** files in `raw/captures/`, `raw/inbox/`, and all other `raw/` subdirectories added or modified in git since the last `dream-cycle` entry in `log.md`. Fall back to filesystem mtime if git is unavailable.
+- **Default:** files in `raw/captures/`, `raw/inbox/`, and all other `raw/` subdirectories added or modified in git since the last `dream-cycle` entry in `log.md`. Parse the ISO timestamp from that log entry (format: `## [YYYY-MM-DDTHH:MMZ] dream-cycle | ...`) and pass it to `git log --since="YYYY-MM-DDTHH:MMZ" --name-only` for sub-day precision. Fall back to filesystem mtime if git is unavailable.
   - Newly added files: process normally.
   - Modified files (M): flag as "caution: previously ingested — check for new content vs. tooling artefact" but still process.
 - **`--full`:** all files in `raw/` (excluding `.gitkeep`). Warn and wait for explicit confirmation before continuing.
 
-Report scope: `Processing N files [since YYYY-MM-DD | full reprocess]`
+Report scope: `Processing N files [since YYYY-MM-DDTHH:MMZ | full reprocess]`
 
 ---
 
@@ -101,7 +103,8 @@ Run after all files in scope have been processed.
 ## 4. Finalise
 
 - Update `index.md` for all new pages
-- Append dream-cycle entry to `log.md`
+- Append dream-cycle entry to `log.md` using the run timestamp captured at start:
+  `## [YYYY-MM-DDTHH:MMZ] dream-cycle | N files processed → N new pages, N wiki pages updated`
 - Commit and push:
   ```
   git add wiki/ index.md log.md

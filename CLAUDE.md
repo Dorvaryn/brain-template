@@ -192,7 +192,7 @@ Main body. Appropriate to entity type:
 
 **index.md**: sections match wiki/ subdirectories. Each entry: `[[page-link]] -- one-line summary`
 
-**log.md**: each entry prefixed `## [YYYY-MM-DD] operation | description`
+**log.md**: each entry prefixed `## [YYYY-MM-DDTHH:MMZ] operation | description`
 
 Valid operations: ingest, lint, slack-capture, jira-capture, gmail-capture, outlook-capture,
 calendar-capture, transcript-capture, confluence-capture, dream-cycle, manual
