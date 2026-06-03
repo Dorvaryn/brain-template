@@ -319,12 +319,12 @@ echo ""
 echo "Configuring shell profiles..."
 
 append_if_missing() {
-  local file="$1" marker="$2" line="$3"
+  local file="$1" marker="$2" line="$3" comment="${4:-brain}"
   if [[ -f "$file" ]] && grep -qF "$marker" "$file"; then
-    echo "  $file: BRAIN_DIR already set, skipping."
+    echo "  $file: $marker already set, skipping."
   elif [[ -f "$file" ]]; then
-    printf '\n# brain\n%s\n' "$line" >> "$file"
-    echo "  $file: added BRAIN_DIR."
+    printf '\n# %s\n%s\n' "$comment" "$line" >> "$file"
+    echo "  $file: added $marker."
   fi
 }
 
@@ -341,7 +341,7 @@ NU_ENV="$HOME/.config/nushell/env.nu"
 if [[ -f "$NU_ENV" ]] && grep -q "BRAIN_DIR" "$NU_ENV"; then
   echo "  $NU_ENV: BRAIN_DIR already set, skipping."
 elif [[ -f "$NU_ENV" ]]; then
-  printf '\n# brain\n\$env.BRAIN_DIR = "%s"\n' "$BRAIN_DIR" >> "$NU_ENV"
+  printf '\n# brain\n$env.BRAIN_DIR = "%s"\n' "$BRAIN_DIR" >> "$NU_ENV"
   echo "  $NU_ENV: added BRAIN_DIR."
 fi
 
@@ -385,10 +385,10 @@ else:
 PYEOF
 
     # Shell profiles
-    append_if_missing "$HOME/.bashrc"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
-    append_if_missing "$HOME/.bash_profile" "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
-    append_if_missing "$HOME/.zshrc"        "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
-    append_if_missing "$HOME/.zshenv"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\""
+    append_if_missing "$HOME/.bashrc"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
+    append_if_missing "$HOME/.bash_profile" "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
+    append_if_missing "$HOME/.zshrc"        "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
+    append_if_missing "$HOME/.zshenv"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
 
     NU_ENV="$HOME/.config/nushell/env.nu"
     if [[ -f "$NU_ENV" ]] && grep -q "BRAIN_TEMPLATE_DIR" "$NU_ENV"; then
