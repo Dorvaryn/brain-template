@@ -43,6 +43,12 @@ Fields: `brain_sha`, `template_sha`, `synced_at`. If the file is missing or eith
 
 ### 2. Detect changes (run both in parallel)
 
+Fetch both remotes first so SHA comparisons are valid on any machine:
+```bash
+git -C $BRAIN_DIR fetch origin
+git -C $BRAIN_TEMPLATE_DIR fetch origin
+```
+
 **Brain changes since `brain_sha`** (infrastructure files only):
 ```bash
 git -C $BRAIN_DIR log --name-only --pretty=format: <brain_sha>..HEAD \
