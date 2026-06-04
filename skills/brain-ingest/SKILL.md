@@ -353,3 +353,5 @@ Run /brain-sync to commit captures, then /brain-dream to synthesise into wiki.
 ```
 
 Do not commit or push -- leave that to /brain-sync and /brain-dream.
+
+**Do not auto write `raw/captures/` files during ingest.** The raw files written above (tickets, slack, outlook, confluence, etc.) are already the capture. Writing additional files to `raw/captures/` for signals found in ingest data creates duplicates that the dream cycle processes twice. Only write a `raw/captures/` file if something notable surfaces in the conversation itself — something the ingest pipeline would not otherwise record.
