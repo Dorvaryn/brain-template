@@ -13,7 +13,7 @@ if [[ ! -f "$FLAG" ]]; then
 import json
 print(json.dumps({
   'decision': 'block',
-  'reason': 'BRAIN: End-of-turn capture check — follow Brain Capture (always active) rules in CLAUDE.md. Write captures now, or confirm nothing to capture.',
+  'reason': 'BRAIN capture check. Write a capture file for: (1) A decision the USER confirmed — not a plan you proposed; only capture once endorsed. (2) An open question the USER raised or confirmed needs tracking. (3) An architectural position taken or challenged. (4) A vendor/SDK evaluation finding. Do NOT capture your own proposals — wait for the user to endorse them first. Full instructions and body structure: Brain Capture section in global-rules.md. Confirm clean if nothing applies.',
   'suppressOutput': True
 }))
 "

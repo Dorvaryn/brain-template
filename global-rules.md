@@ -47,6 +47,8 @@ Do not defer, do not ask permission. The dream runs first, then respond.
 - An architectural position taken or challenged
 - A vendor, provider, or SDK evaluation producing a finding
 
+**Do not capture your own proposals until the user endorses them.** This applies to all types — decision, question, architecture, evaluation.
+
 **Common failure modes to avoid:**
 - Thinking "I'll capture this at the end" — capture now, the end hook is a safety net not the plan
 - Skipping captures when absorbed in a task — notable moments are most forgettable under task pressure
@@ -71,12 +73,6 @@ cwd: [working directory]
 - **question:** The question in one sentence. Context/trigger: what surfaced it. Options or approaches under consideration, if known.
 - **architecture:** State the position taken. Driving forces that led to it. Key trade-offs or consequences. Any constraints it imposes on future work.
 - **evaluation:** Subject evaluated (tool, vendor, SDK). Key finding in one sentence. Evidence or reasoning. Recommendation or next step.
-
-**When to write a question capture for a proposal you made:**
-- Needs external input, investigation, or won't resolve this session → write immediately
-- Will clearly be confirmed or rejected in this exchange → do not write a question capture; write a decision capture when endorsed
-
-**Stop hook self-check:** When the stop hook fires, re-read any capture written this turn and ask "does this actually record a decision/question/architecture/evaluation, or is it an implementation note?" An implementation note is not a capture. If it doesn't pass, rewrite before confirming clean.
 
 Before writing the file, run `date -u +%Y-%m-%dT%H:%M:%SZ` via Bash and use the actual value for `timestamp`. Do not approximate or round to the nearest hour.
 
