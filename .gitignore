@@ -4,7 +4,9 @@
 .env
 *.secret
 .gemini/
-*.swp
-*.swo
 .claude/
 .antigravitycli/
+*.swp
+*.swo
+bin/mcp-server-filesystem/node_modules/
+bin/mcp-server-filesystem/package-lock.json

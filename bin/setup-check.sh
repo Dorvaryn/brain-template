@@ -76,10 +76,19 @@ echo ""
 
 # ── 3. Hook scripts ──────────────────────────────────────────────────────────
 
-for script in brain-start.sh brain-stop.sh brain-end.sh \
-              ai-statusline.sh ai-statusline-brain.sh ai-statusline-calendar.sh \
-              agy-statusline.sh agy-statusline.py \
-              gemini-brain-start.sh gemini-brain-post.sh gemini-brain-end.sh; do
+# Patched MCP server
+MCP_SERVER="${BRAIN_DIR}/bin/mcp-server-filesystem/index.js"
+if [ -z "$BRAIN_DIR" ]; then
+  warn "Skipping mcp-server-filesystem check (BRAIN_DIR not set)"
+elif [ ! -f "$MCP_SERVER" ]; then
+  fail "Patched MCP server not found at bin/mcp-server-filesystem/index.js" \
+    "Re-clone or re-run install.sh; the patched server must be committed to the brain repo"
+else
+  ok "Patched mcp-server-filesystem/index.js exists"
+fi
+
+for script in ai-statusline.sh ai-statusline-brain.sh ai-statusline-calendar.sh \
+              agy-statusline.sh agy-statusline.py; do
   path="${BRAIN_DIR}/bin/${script}"
   if [ -z "$BRAIN_DIR" ]; then
     warn "Skipping $script check (BRAIN_DIR not set)"
@@ -87,6 +96,21 @@ for script in brain-start.sh brain-stop.sh brain-end.sh \
     fail "$script not found at $path" \
       "Re-clone the brain template or copy bin/$script from the repo"
   elif [[ "$script" == *.sh ]] && [ ! -x "$path" ]; then
+    fail "$script exists but is not executable" \
+      "Run: chmod +x $path"
+  else
+    ok "$script exists"
+  fi
+done
+for script in brain-start.sh brain-stop.sh brain-end.sh \
+              gemini-brain-start.sh gemini-brain-post.sh gemini-brain-end.sh; do
+  path="${BRAIN_DIR}/hooks/${script}"
+  if [ -z "$BRAIN_DIR" ]; then
+    warn "Skipping $script check (BRAIN_DIR not set)"
+  elif [ ! -f "$path" ]; then
+    fail "$script not found at $path" \
+      "Re-clone the brain template or copy hooks/$script from the repo"
+  elif [ ! -x "$path" ]; then
     fail "$script exists but is not executable" \
       "Run: chmod +x $path"
   else
@@ -111,6 +135,13 @@ else
   else
     fail "BRAIN_DIR not found in settings.json env section" \
       "Add: \"env\": { \"BRAIN_DIR\": \"/path/to/your/brain\" }"
+  fi
+
+  if json_has "$SETTINGS" "ONEDRIVE_DIR"; then
+    ok "ONEDRIVE_DIR env var present in settings.json"
+  else
+    warn "ONEDRIVE_DIR not found in settings.json env section" \
+      "Run install.sh to detect and set it (required for OneDrive MCP)"
   fi
 
   if json_has "$SETTINGS" "SessionStart"; then
@@ -144,6 +175,57 @@ fi
 
 echo ""
 
+# ── 4b. Claude Code MCP servers (CLI) ────────────────────────────────────────
+# Checks: registered + using patched local server (which ignores MCP roots override
+# when CLI args are provided). Env var vs hardcoded path is acceptable as long as
+# the patched server is in use — roots override is the actual risk, not env vars per se.
+# Exception: if $BRAIN_DIR/$ONEDRIVE_DIR is unset at check time, env var usage is still a risk.
+
+CLAUDE_JSON="$HOME/.claude.json"
+
+_check_mcp_server() {
+  local name="$1" var_name="$2" var_val="$3"
+  if [ -f "$CLAUDE_JSON" ] && grep -q "mcp-server-filesystem" "$CLAUDE_JSON"; then
+    # Patched local server in use — roots override is not a risk.
+    # If command uses env var, verify the var is currently set and resolves correctly.
+    if grep -qF "\$${var_name}" "$CLAUDE_JSON"; then
+      if [ -n "$var_val" ] && [ -d "$var_val" ]; then
+        ok "${name} MCP uses patched local server (\$${var_name} set, resolves to $(readlink -f "$var_val" 2>/dev/null || echo "$var_val"))"
+      else
+        fail "${name} MCP uses \$${var_name} env var but ${var_name} is unset or invalid" \
+          "Run install.sh to set ${var_name} and re-register the MCP"
+      fi
+    else
+      ok "${name} MCP uses patched local server (hardcoded path)"
+    fi
+  elif [ -f "$CLAUDE_JSON" ]; then
+    fail "${name} MCP not using patched local server (may be using npx or old registration)" \
+      "Re-register: claude mcp remove $(echo "$name" | tr '[:upper:]' '[:lower:]') --scope user && run install.sh"
+  fi
+}
+
+if command -v claude &>/dev/null; then
+  if claude mcp list 2>/dev/null | grep -q "^brain:"; then
+    ok "Brain MCP registered (claude mcp list)"
+    _check_mcp_server "Brain" "BRAIN_DIR" "$BRAIN_DIR"
+  else
+    fail "Brain MCP not registered with Claude Code CLI" \
+      "Run install.sh to register it"
+  fi
+
+  if claude mcp list 2>/dev/null | grep -q "^onedrive:"; then
+    ok "OneDrive MCP registered (claude mcp list)"
+    _check_mcp_server "OneDrive" "ONEDRIVE_DIR" "$ONEDRIVE_DIR"
+  else
+    fail "OneDrive MCP not registered with Claude Code CLI" \
+      "Run install.sh to register it"
+  fi
+else
+  warn "claude CLI not found — skipping MCP registration checks"
+fi
+
+echo ""
+
 # ── 5. Global CLAUDE.md ───────────────────────────────────────────────────────
 
 GLOBAL_CLAUDE="$HOME/.claude/CLAUDE.md"
@@ -167,7 +249,7 @@ echo ""
 # ── 6. Skills ────────────────────────────────────────────────────────────────
 
 SKILLS_DIR="$HOME/.claude/skills"
-for skill in brain-dream brain-ingest brain-status brain-sync; do
+for skill in brain-cycle brain-dream brain-ingest brain-status brain-sync; do
   if [ -e "$SKILLS_DIR/$skill" ]; then
     ok "Skill registered: $skill"
   else
@@ -222,6 +304,20 @@ if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
 
   if [ $mcp_ok -eq 1 ]; then
     ok "Brain MCP server configured (Gemini/Antigravity)"
+    # Verify it uses the patched local server, not npx
+    gemini_uses_patched=0
+    if [ -f "$GEMINI_SETTINGS" ] && json_has "$GEMINI_SETTINGS" 'mcp-server-filesystem'; then
+      gemini_uses_patched=1
+    fi
+    if [ -f "$AGY_MCP_CONFIG" ] && json_has "$AGY_MCP_CONFIG" 'mcp-server-filesystem'; then
+      gemini_uses_patched=1
+    fi
+    if [ $gemini_uses_patched -eq 1 ]; then
+      ok "Gemini brain MCP uses patched local server"
+    else
+      fail "Gemini brain MCP not using patched local server (may still use npx)" \
+        "Run install.sh to update ~/.gemini/settings.json and mcp_config.json"
+    fi
   else
     fail "Brain MCP server not configured for Gemini/Antigravity" \
       "Run install.sh to configure it"
@@ -271,7 +367,7 @@ if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
   fi
 
   # Check skills
-  for skill in brain-dream brain-ingest brain-status brain-sync; do
+  for skill in brain-cycle brain-dream brain-ingest brain-status brain-sync; do
     if [ -e "$GEMINI_SKILLS/$skill" ]; then
       ok "Gemini skill registered: $skill"
     else
@@ -281,6 +377,38 @@ if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
   done
 else
   warn "Gemini/Antigravity CLI not installed, skipping these checks"
+fi
+
+echo ""
+
+# ── 9. Windows Claude Desktop (WSL only) ─────────────────────────────────────
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
+  CLAUDE_DESKTOP_CONFIG="/mnt/c/Users/$WIN_USER/AppData/Roaming/Claude/claude_desktop_config.json"
+
+  if [ -f "$CLAUDE_DESKTOP_CONFIG" ]; then
+    ok "Windows Claude Desktop config found"
+
+    if json_has "$CLAUDE_DESKTOP_CONFIG" '"brain"'; then
+      ok "Brain MCP configured in Windows Claude Desktop"
+    else
+      fail "Brain MCP missing from Windows Claude Desktop config" \
+        "Run install.sh to add it"
+    fi
+
+    if json_has "$CLAUDE_DESKTOP_CONFIG" '"onedrive"'; then
+      ok "OneDrive MCP configured in Windows Claude Desktop"
+    else
+      fail "OneDrive MCP missing from Windows Claude Desktop config" \
+        "Run install.sh to add it"
+    fi
+  else
+    warn "Windows Claude Desktop config not found (app not installed?)" \
+      "Expected: $CLAUDE_DESKTOP_CONFIG"
+  fi
+else
+  warn "Not running on WSL — skipping Windows Claude Desktop checks"
 fi
 
 echo ""

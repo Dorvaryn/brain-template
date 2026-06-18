@@ -1,7 +1,8 @@
 ## Brain System
 
-Brain repo: $BRAIN_DIR
-Brain MCP server: brain (filesystem access to the brain repo)
+Brain repo: $BRAIN_DIR (/home/dorvaryn/brain)
+Brain MCP server: brain (filesystem access to the brain repo — all ops auto-allowed)
+OneDrive MCP server: onedrive (filesystem access to $ONEDRIVE_DIR — reads auto-allowed, writes require confirmation; ONEDRIVE_DIR is machine-specific, set in ~/.claude/settings.json by install.sh)
 
 ### Using the index
 

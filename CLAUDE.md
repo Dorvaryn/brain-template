@@ -70,8 +70,8 @@ status:
   leadership/personal: discovery|active|paused|decided|complete|abandoned
 started: date
 jira_epics: list
-slack_refs: list
 ---
+
 ```
 
 Use `jira_epics` for delivery projects.
@@ -99,7 +99,6 @@ project: string
 owner: string    # DRI — expected on questions; optional on decisions
 raised: date
 resolved: date   # omit when open
-slack_ref: url
 ---
 ```
 
@@ -152,16 +151,32 @@ Use sub-headings for structure. Keep it dense — this is a reference, not a sum
 
 ---
 
-## slack_ref Behaviour
+## Sources Section
 
-Optional field on decisions, questions, projects, and theatre pages.
-Stores Slack message permalink when item originated from a Slack saved item.
+Slack references live in a `## Sources` body section — not in frontmatter. This keeps URLs clickable in Obsidian and co-locates context with the content.
 
-Lifecycle:
-- Saved in Slack => captured to raw/slack/ with permalink => dream cycle creates wiki page with slack_ref
-- Item stays saved in Slack while wiki page is unresolved
-- When wiki page status changes to resolved (resolved/complete/seen): lint pass queues un-save
-- Slack saved items list is a live view of unresolved captured items
+**Format:**
+```markdown
+## Sources
+- [#channel-name — brief description](https://your-org.slack.com/...) · saved YYYY-MM-DD
+- [#channel-name — brief description](https://your-org.slack.com/...) · saved YYYY-MM-DD · unsaved YYYY-MM-DD
+- [Person Name DM — brief description](https://your-org.slack.com/...)
+- [Person A, Person B, Person C — group DM description](https://your-org.slack.com/...)
+```
+
+**Annotation markers:**
+- `· saved YYYY-MM-DD` — item was manually saved in Slack; pending un-save
+- `· saved YYYY-MM-DD · unsaved YYYY-MM-DD` — saved and subsequently un-saved from Slack
+
+Description should always include source context: `#channel-name` for channels, `Person Name DM` for 1:1 DMs, comma-separated participant names for group DMs.
+
+**Lifecycle for saved items:**
+- You save a Slack message → ingest captures it → dream cycle adds a `· saved YYYY-MM-DD` entry to `## Sources`
+- Page stays unresolved while saved item is still in Slack
+- When wiki page status reaches resolved/complete/seen/abandoned: lint flags entry (has `· saved` but no `· unsaved`) → you un-save in Slack → dream cycle appends `· unsaved YYYY-MM-DD` to the entry
+- URL is always preserved — never removed
+
+**Lint rule:** on resolved/complete/seen/abandoned pages, surface any `## Sources` line containing `· saved` without `· unsaved`.
 
 ---
 
@@ -183,6 +198,9 @@ Main body. Appropriate to entity type:
 - Decisions: context, options considered, rationale, outcome
 - Architecture: the position, driving forces, trade-offs, consequences
 - Knowledge: key facts, numbers, signals — dense reference, use sub-headings
+
+## Sources
+- [#channel-name — description](url) · saved YYYY-MM-DD   (omit section if no references)
 
 ## Links
 [[related-page]] -- one line on why it is related
@@ -325,16 +343,23 @@ brain/
 |   +-- week-notes/
 +-- templates/
 +-- skills/
+|   +-- brain-cycle/SKILL.md           # Full ingest→dream pipeline
 |   +-- brain-dream/SKILL.md
 |   +-- brain-ingest/SKILL.md
 |   +-- brain-status/SKILL.md
 |   +-- brain-sync/SKILL.md
-+-- bin/
+|   +-- brain-sync-template/SKILL.md
++-- hooks/
 |   +-- brain-start.sh                 # Claude Code SessionStart hook
 |   +-- brain-end.sh                   # Claude Code SessionEnd hook (use setsid)
+|   +-- brain-stop.sh                  # Claude Code Stop hook
 |   +-- gemini-brain-start.sh          # Gemini CLI SessionStart hook
 |   +-- gemini-brain-end.sh            # Gemini CLI SessionEnd hook (use setsid)
+|   +-- gemini-brain-post.sh           # Gemini CLI PostToolUse hook
++-- bin/
 |   +-- install.sh                     # One-time setup: hooks, MCP, skills, CLAUDE.md symlink
 |   +-- setup-check.sh                 # Post-install verification
+|   +-- ai-statusline.sh               # AI statusline entry point (Starship integration)
+|   +-- mcp-server-filesystem/         # Patched MCP filesystem server
 +-- .github/workflows/
 ```

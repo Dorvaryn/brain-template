@@ -8,15 +8,6 @@ BRAIN_DIR="${BRAIN_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 echo "Installing brain from $BRAIN_DIR"
 
-# --- 0. Preflight: check Identity is configured ---
-if grep -q '\[YOUR_NAME\]' "$BRAIN_DIR/CLAUDE.md" 2>/dev/null; then
-  echo ""
-  echo "  WARNING: CLAUDE.md still contains placeholder values."
-  echo "  Edit the Identity section in CLAUDE.md and config.yml before first use."
-  echo "  Install will continue, but the brain will not work correctly until configured."
-  echo ""
-fi
-
 # --- 1. Claude Code user settings (env + hooks) ---
 SETTINGS="$HOME/.claude/settings.json"
 mkdir -p "$(dirname "$SETTINGS")"
@@ -44,6 +35,14 @@ else:
     settings["env"]["BRAIN_DIR"] = brain_dir
     print(f"  Set BRAIN_DIR={brain_dir} in ~/.claude/settings.json")
 
+# StatusLine
+target_statusline = {"type": "command", "command": "bash \$BRAIN_DIR/bin/ai-statusline.sh"}
+if settings.get("statusLine", {}).get("command") == target_statusline["command"]:
+    print("  statusLine already configured, skipping.")
+else:
+    settings["statusLine"] = target_statusline
+    print("  Configured statusLine -> ai-statusline.sh")
+
 # Session hooks
 def has_hook(hooks_list, cmd):
     return any(h.get("command") == cmd for entry in hooks_list for h in entry.get("hooks", []))
@@ -56,36 +55,161 @@ for event, script in [
 ]:
     # brain-end.sh must use setsid so it survives Claude Code's process group teardown
     prefix = "setsid bash" if script == "brain-end.sh" else "bash"
-    cmd = f"{prefix} \$BRAIN_DIR/bin/{script}"
+    cmd = f"{prefix} \$BRAIN_DIR/hooks/{script}"
     settings["hooks"].setdefault(event, [])
     if has_hook(settings["hooks"][event], cmd):
         print(f"  {event} brain hook already registered, skipping.")
     else:
         settings["hooks"][event].append({"hooks": [{"command": cmd, "type": "command"}]})
-        print(f"  Registered {event} hook -> bin/{script}")
+        print(f"  Registered {event} hook -> hooks/{script}")
+
+# Permissions for all brain MCP tools (global allow — works in any project directory)
+BRAIN_MCP_TOOLS = [
+    "mcp__brain__create_directory",
+    "mcp__brain__directory_tree",
+    "mcp__brain__edit_file",
+    "mcp__brain__get_file_info",
+    "mcp__brain__list_allowed_directories",
+    "mcp__brain__list_directory",
+    "mcp__brain__list_directory_with_sizes",
+    "mcp__brain__move_file",
+    "mcp__brain__read_file",
+    "mcp__brain__read_media_file",
+    "mcp__brain__read_multiple_files",
+    "mcp__brain__read_text_file",
+    "mcp__brain__search_files",
+    "mcp__brain__write_file",
+]
+settings.setdefault("permissions", {}).setdefault("allow", [])
+added = [t for t in BRAIN_MCP_TOOLS if t not in settings["permissions"]["allow"]]
+if added:
+    settings["permissions"]["allow"] = sorted(
+        set(settings["permissions"]["allow"]) | set(BRAIN_MCP_TOOLS)
+    )
+    print(f"  Added {len(added)} brain MCP tool permission(s) to ~/.claude/settings.json")
+else:
+    print("  Brain MCP permissions already set in settings.json, skipping.")
 
 with open(settings_path, "w") as f:
     json.dump(settings, f, indent=2)
     f.write("\n")
 PYEOF
 
-# --- 2. Claude Code MCP server ---
-if command -v claude &>/dev/null; then
-  if claude mcp list 2>/dev/null | grep -q "^brain:"; then
-    echo ""
-    echo "Brain MCP server already registered with Claude Code."
+# --- 2b. Configure ONEDRIVE_DIR (machine-specific OneDrive root path) ---
+# ONEDRIVE_DIR is the OneDrive root (e.g. "OneDrive - ATG Entertainment").
+# Individual SharePoint sites are subfolders within it — configured in config.yml onedrive.sites[].path
+
+# On reruns: skip if already configured to a valid path
+EXISTING_ONEDRIVE=$(python3 -c "
+import json, os
+try:
+    s = json.load(open(os.path.expanduser('~/.claude/settings.json')))
+    print(s.get('env', {}).get('ONEDRIVE_DIR', ''))
+except: print('')
+" 2>/dev/null)
+
+if [[ -n "$EXISTING_ONEDRIVE" && -d "$EXISTING_ONEDRIVE" ]]; then
+  echo "  ONEDRIVE_DIR already configured: $EXISTING_ONEDRIVE (skipping)"
+  ONEDRIVE_DIR="$EXISTING_ONEDRIVE"
+else
+  # Detect a candidate path for the work OneDrive root
+  CANDIDATE=""
+  if uname -r 2>/dev/null | grep -qi "microsoft\|wsl"; then
+    WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r' || echo "$USER")
+    WIN_HOME="/mnt/c/Users/$WIN_USER"
+    for base in "$WIN_HOME"/OneDrive*; do
+      if [[ -d "$base" ]] && echo "$base" | grep -qi "ATG\|Entertainment\|ambassador"; then
+        CANDIDATE="$base"; break
+      fi
+    done
+    CANDIDATE="${CANDIDATE:-$WIN_HOME/OneDrive - ATG Entertainment}"
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    for base in "$HOME/Library/CloudStorage"/OneDrive* "$HOME"/OneDrive*; do
+      if [[ -d "$base" ]] && echo "$base" | grep -qi "ATG\|Entertainment\|ambassador"; then
+        CANDIDATE="$base"; break
+      fi
+    done
+    CANDIDATE="${CANDIDATE:-$HOME/Library/CloudStorage/OneDrive - ATG Entertainment}"
   else
-    echo ""
-    claude mcp add brain --scope user -- sh -c 'npx -y @modelcontextprotocol/server-filesystem "$BRAIN_DIR"'
-    echo "Brain MCP server registered with Claude Code."
+    CANDIDATE="$HOME/OneDrive - ATG Entertainment"
+  fi
+
+  echo ""
+  echo "  OneDrive root detected: $CANDIDATE"
+  read -r -p "  Press Enter to accept or type a different path: " ONEDRIVE_INPUT
+  ONEDRIVE_DIR="${ONEDRIVE_INPUT:-$CANDIDATE}"
+  # Expand tilde if user typed ~/...
+  ONEDRIVE_DIR="${ONEDRIVE_DIR/#\~/$HOME}"
+
+  python3 - <<PYEOF2
+import json, os
+settings_path = os.path.expanduser("~/.claude/settings.json")
+onedrive_dir = "$ONEDRIVE_DIR"
+try:
+    with open(settings_path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+settings.setdefault("env", {})
+settings["env"]["ONEDRIVE_DIR"] = onedrive_dir
+with open(settings_path, "w") as f:
+    json.dump(settings, f, indent=2)
+    f.write("\n")
+print(f"  Set ONEDRIVE_DIR={onedrive_dir} in ~/.claude/settings.json")
+PYEOF2
+fi
+
+if [[ -d "$ONEDRIVE_DIR" ]]; then
+  echo "  OneDrive root found at $ONEDRIVE_DIR"
+  ONEDRIVE_AVAILABLE=true
+else
+  echo "  OneDrive root not found at $ONEDRIVE_DIR — sign in to OneDrive and sync first."
+  ONEDRIVE_AVAILABLE=false
+fi
+
+# --- 2b. MCP server dependencies ---
+MCP_SERVER_DIR="$BRAIN_DIR/bin/mcp-server-filesystem"
+if [[ -d "$MCP_SERVER_DIR/node_modules" ]]; then
+  echo "MCP server dependencies already installed, skipping."
+else
+  echo "Installing MCP server dependencies..."
+  (cd "$MCP_SERVER_DIR" && npm install --ignore-scripts 2>&1 | tail -3)
+  echo "MCP server dependencies installed."
+fi
+
+# --- 3. Claude Code MCP servers (brain + onedrive — separate for permission control) ---
+if command -v claude &>/dev/null; then
+  echo ""
+
+  # 3a. Brain MCP — always registered, auto-allowed for all operations
+  # Uses patched local server (bin/mcp-server-filesystem/) — skips roots override when CLI
+  # args are provided, preventing Claude Code from overriding the configured path with CWD.
+  if claude mcp list 2>/dev/null | grep -q "^brain:"; then
+    echo "Brain MCP already registered, skipping."
+  else
+    claude mcp add brain --scope user \
+      -- node "$BRAIN_DIR/bin/mcp-server-filesystem/index.js" "$BRAIN_DIR"
+    echo "Brain MCP registered (mcp__brain__* — auto-allowed)."
+  fi
+
+  # 3b. OneDrive MCP — serves full OneDrive root; reads auto-allowed, writes require confirmation
+  if claude mcp list 2>/dev/null | grep -q "^onedrive:"; then
+    echo "OneDrive MCP already registered, skipping."
+  elif [[ "$ONEDRIVE_AVAILABLE" == "true" ]]; then
+    claude mcp add onedrive --scope user \
+      -- node "$BRAIN_DIR/bin/mcp-server-filesystem/index.js" "$ONEDRIVE_DIR"
+    echo "OneDrive MCP registered (mcp__onedrive__* — reads auto-allowed, writes require confirmation)."
+  else
+    echo "OneDrive MCP skipped — OneDrive root not available. Re-run install.sh after sign-in."
   fi
 else
   echo ""
-  echo "claude CLI not found -- register MCP server manually:"
-  echo "  claude mcp add brain --scope user -- sh -c 'npx -y @modelcontextprotocol/server-filesystem \"\$BRAIN_DIR\"'"
+  echo "claude CLI not found -- register MCP servers manually:"
+  echo "  claude mcp add brain --scope user -- node '$BRAIN_DIR/bin/mcp-server-filesystem/index.js' '$BRAIN_DIR'"
+  echo "  claude mcp add onedrive --scope user -- node '$BRAIN_DIR/bin/mcp-server-filesystem/index.js' '$ONEDRIVE_DIR'"
 fi
 
-# --- 3. Claude Code skills symlinks ---
+# --- 4. Claude Code skills symlinks ---
 SKILLS_DIR="$HOME/.claude/skills"
 mkdir -p "$SKILLS_DIR"
 for skill_dir in "$BRAIN_DIR/skills"/*/; do
@@ -98,7 +222,7 @@ for skill_dir in "$BRAIN_DIR/skills"/*/; do
   fi
 done
 
-# --- 4. Global CLAUDE.md (symlink -> brain/claude-global.md) ---
+# --- 5. Global CLAUDE.md (symlink -> brain/claude-global.md) ---
 CLAUDE_MD="$HOME/.claude/CLAUDE.md"
 TARGET="$BRAIN_DIR/claude-global.md"
 if [[ -L "$CLAUDE_MD" && "$(readlink "$CLAUDE_MD")" == "$TARGET" ]]; then
@@ -114,7 +238,7 @@ else
   echo "Created symlink: $CLAUDE_MD -> $TARGET"
 fi
 
-# --- 5. Gemini / Antigravity CLI setup ---
+# --- 6. Gemini / Antigravity CLI setup ---
 echo ""
 if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
   mkdir -p "$HOME/.gemini"
@@ -138,18 +262,19 @@ except (FileNotFoundError, json.JSONDecodeError):
 
 settings.setdefault("mcpServers", {})
 settings["mcpServers"]["brain"] = {
-    "command": "bash",
-    "args": ["-c", 'npx -y @modelcontextprotocol/server-filesystem "\$BRAIN_DIR"']
+    "command": "node",
+    "args": [f"{brain_dir}/bin/mcp-server-filesystem/index.js", brain_dir],
 }
 settings.setdefault("env", {})
 settings["env"]["BRAIN_DIR"] = brain_dir
+settings["env"].setdefault("GIT_SSH_COMMAND", "ssh.exe")
 
 settings["hooks"] = {
     "PreInvocation": [{
         "hooks": [{
             "name": "brain-sync-start",
             "type": "command",
-            "command": "bash \$BRAIN_DIR/bin/gemini-brain-start.sh",
+            "command": "bash \$BRAIN_DIR/hooks/gemini-brain-start.sh",
             "description": "Pull latest brain repo and show sync status",
             "timeout": 30000
         }]
@@ -158,7 +283,7 @@ settings["hooks"] = {
         "hooks": [{
             "name": "brain-capture-reminder",
             "type": "command",
-            "command": "bash \$BRAIN_DIR/bin/gemini-brain-post.sh",
+            "command": "bash \$BRAIN_DIR/hooks/gemini-brain-post.sh",
             "description": "Remind agent to capture decisions",
             "timeout": 5000
         }]
@@ -167,7 +292,7 @@ settings["hooks"] = {
         "hooks": [{
             "name": "brain-sync-end",
             "type": "command",
-            "command": "setsid bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
+            "command": "setsid bash \$BRAIN_DIR/hooks/gemini-brain-end.sh",
             "description": "Commit any pending raw/ captures to brain repo",
             "timeout": 60000
         }]
@@ -188,8 +313,8 @@ except (FileNotFoundError, json.JSONDecodeError):
 
 mcp_config.setdefault("mcpServers", {})
 mcp_config["mcpServers"]["brain"] = {
-    "command": "bash",
-    "args": ["-c", 'npx -y @modelcontextprotocol/server-filesystem "\$BRAIN_DIR"']
+    "command": "node",
+    "args": [f"{brain_dir}/bin/mcp-server-filesystem/index.js", brain_dir],
 }
 
 with open(mcp_config_path, "w") as f:
@@ -209,7 +334,7 @@ hooks_config["hooks"] = {
         "hooks": [{
             "name": "brain-sync-start",
             "type": "command",
-            "command": "bash \$BRAIN_DIR/bin/gemini-brain-start.sh",
+            "command": "bash \$BRAIN_DIR/hooks/gemini-brain-start.sh",
             "description": "Pull latest brain repo and show sync status",
             "timeout": 30000
         }]
@@ -218,7 +343,7 @@ hooks_config["hooks"] = {
         "hooks": [{
             "name": "brain-capture-reminder",
             "type": "command",
-            "command": "bash \$BRAIN_DIR/bin/gemini-brain-post.sh",
+            "command": "bash \$BRAIN_DIR/hooks/gemini-brain-post.sh",
             "description": "Remind agent to capture decisions",
             "timeout": 5000
         }]
@@ -227,7 +352,7 @@ hooks_config["hooks"] = {
         "hooks": [{
             "name": "brain-sync-end",
             "type": "command",
-            "command": "setsid bash \$BRAIN_DIR/bin/gemini-brain-end.sh",
+            "command": "setsid bash \$BRAIN_DIR/hooks/gemini-brain-end.sh",
             "description": "Commit any pending raw/ captures to brain repo",
             "timeout": 60000
         }]
@@ -238,6 +363,41 @@ with open(hooks_config_path, "w") as f:
     json.dump(hooks_config, f, indent=2)
     f.write("\n")
 print("Updated ~/.gemini/config/hooks.json with PreInvocation, PostInvocation, and Stop hooks.")
+PYEOF
+
+  # Update ~/.gemini/antigravity-cli/settings.json (agy statusLine + trustedWorkspaces)
+  python3 - <<PYEOF
+import json, os
+
+agy_settings_path = os.path.expanduser("~/.gemini/antigravity-cli/settings.json")
+brain_dir = "$BRAIN_DIR"
+
+os.makedirs(os.path.dirname(agy_settings_path), exist_ok=True)
+try:
+    with open(agy_settings_path) as f:
+        agy = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    agy = {}
+
+# StatusLine
+target_cmd = "bash \$BRAIN_DIR/bin/agy-statusline.sh"
+if agy.get("statusLine", {}).get("command") == target_cmd:
+    print("  agy statusLine already configured, skipping.")
+else:
+    agy["statusLine"] = {"type": "command", "command": target_cmd}
+    print("  Configured agy statusLine -> agy-statusline.sh")
+
+# Trusted workspaces
+agy.setdefault("trustedWorkspaces", [])
+if brain_dir not in agy["trustedWorkspaces"]:
+    agy["trustedWorkspaces"].append(brain_dir)
+    print(f"  Added {brain_dir} to agy trustedWorkspaces.")
+else:
+    print("  agy trustedWorkspaces already includes brain dir, skipping.")
+
+with open(agy_settings_path, "w") as f:
+    json.dump(agy, f, indent=2)
+    f.write("\n")
 PYEOF
 
   # Global GEMINI.md (symlink -> brain/gemini-global.md)
@@ -271,7 +431,7 @@ else
   echo "Install Gemini/Antigravity CLI and re-run install.sh."
 fi
 
-# --- 6. Windows Claude desktop app (WSL only) ---
+# --- 7. Windows Claude desktop app (WSL only) ---
 echo ""
 if grep -qi microsoft /proc/version 2>/dev/null; then
   WIN_USER=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')
@@ -283,6 +443,7 @@ import json
 
 config_path = "$CLAUDE_DESKTOP_CONFIG"
 brain_dir = "$BRAIN_DIR"
+onedrive_dir = "$ONEDRIVE_DIR"
 
 try:
     with open(config_path) as f:
@@ -291,17 +452,34 @@ except (FileNotFoundError, json.JSONDecodeError):
     config = {}
 
 config.setdefault("mcpServers", {})
+changed = False
+
 if "brain" in config["mcpServers"]:
-    print("Brain MCP server already configured in Windows Claude desktop app.")
+    print("Brain MCP already in Windows Claude Desktop config, skipping.")
 else:
     config["mcpServers"]["brain"] = {
         "command": "wsl",
-        "args": ["bash", "-c", 'npx -y @modelcontextprotocol/server-filesystem "$BRAIN_DIR"']
+        "args": ["node", f"{brain_dir}/bin/mcp-server-filesystem/index.js", brain_dir],
     }
+    changed = True
+    print("Brain MCP added to Windows Claude Desktop config.")
+
+if "onedrive" in config["mcpServers"]:
+    print("OneDrive MCP already in Windows Claude Desktop config, skipping.")
+elif onedrive_dir:
+    config["mcpServers"]["onedrive"] = {
+        "command": "wsl",
+        "args": ["node", f"{brain_dir}/bin/mcp-server-filesystem/index.js", onedrive_dir],
+    }
+    changed = True
+    print("OneDrive MCP added to Windows Claude Desktop config.")
+else:
+    print("ONEDRIVE_DIR not set — skipping OneDrive MCP for Windows Claude Desktop.")
+
+if changed:
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
         f.write("\n")
-    print("Brain MCP server added to Windows Claude desktop app.")
 PYEOF
     else
       echo "Windows Claude desktop config not found -- is the app installed?"
@@ -314,7 +492,7 @@ else
   echo "Not running on WSL -- skipping Windows Claude desktop app setup."
 fi
 
-# --- 7. Shell profiles ---
+# --- 8. Shell profiles ---
 echo ""
 echo "Configuring shell profiles..."
 
@@ -328,30 +506,71 @@ append_if_missing() {
   fi
 }
 
-# bash
-append_if_missing "$HOME/.bashrc"       "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
-append_if_missing "$HOME/.bash_profile" "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
+# bash — main profile files (bash has no standard local override convention)
+append_if_missing "$HOME/.bashrc"       "BRAIN_DIR"    "export BRAIN_DIR=\"$BRAIN_DIR\""
+append_if_missing "$HOME/.bash_profile" "BRAIN_DIR"    "export BRAIN_DIR=\"$BRAIN_DIR\""
+append_if_missing "$HOME/.bashrc"       "ONEDRIVE_DIR" "export ONEDRIVE_DIR=\"$ONEDRIVE_DIR\"" "brain-onedrive"
+append_if_missing "$HOME/.bash_profile" "ONEDRIVE_DIR" "export ONEDRIVE_DIR=\"$ONEDRIVE_DIR\"" "brain-onedrive"
 
-# zsh
-append_if_missing "$HOME/.zshrc"  "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
-append_if_missing "$HOME/.zshenv" "BRAIN_DIR" "export BRAIN_DIR=\"$BRAIN_DIR\""
+# zsh — local override file (not tracked in dotfiles)
+ZSH_LOCAL="$HOME/.zshrc.local"
+if [[ ! -f "$ZSH_LOCAL" ]]; then touch "$ZSH_LOCAL"; fi
+append_if_missing "$ZSH_LOCAL" "BRAIN_DIR"    "export BRAIN_DIR=\"$BRAIN_DIR\""
+append_if_missing "$ZSH_LOCAL" "ONEDRIVE_DIR" "export ONEDRIVE_DIR=\"$ONEDRIVE_DIR\"" "brain-onedrive"
 
-# nushell
-NU_ENV="$HOME/.config/nushell/env.nu"
-if [[ -f "$NU_ENV" ]] && grep -q "BRAIN_DIR" "$NU_ENV"; then
-  echo "  $NU_ENV: BRAIN_DIR already set, skipping."
-elif [[ -f "$NU_ENV" ]]; then
-  printf '\n# brain\n$env.BRAIN_DIR = "%s"\n' "$BRAIN_DIR" >> "$NU_ENV"
-  echo "  $NU_ENV: added BRAIN_DIR."
+# nushell — local.nu (not tracked in dotfiles; auto-sourced by env.nu)
+# Detect config dir dynamically: macOS uses ~/Library/Application Support/nushell/,
+# Linux uses ~/.config/nushell/ — ask nu itself rather than hardcoding.
+if command -v nu &>/dev/null; then
+  NU_CONFIG_DIR=$(nu -c '$nu.default-config-dir' 2>/dev/null)
+else
+  NU_CONFIG_DIR="$HOME/.config/nushell"
+fi
+NU_LOCAL="$NU_CONFIG_DIR/local.nu"
+if [[ ! -f "$NU_LOCAL" ]]; then
+  mkdir -p "$NU_CONFIG_DIR"
+  touch "$NU_LOCAL"
+  echo "  Created $NU_LOCAL"
+fi
+if grep -q "BRAIN_DIR" "$NU_LOCAL"; then
+  echo "  $NU_LOCAL: BRAIN_DIR already set, skipping."
+else
+  printf '\n# brain\n$env.BRAIN_DIR = "%s"\n' "$BRAIN_DIR" >> "$NU_LOCAL"
+  echo "  $NU_LOCAL: added BRAIN_DIR."
+fi
+if grep -q "ONEDRIVE_DIR" "$NU_LOCAL"; then
+  echo "  $NU_LOCAL: ONEDRIVE_DIR already set, skipping."
+else
+  printf '\n# brain-onedrive\n$env.ONEDRIVE_DIR = "%s"\n' "$ONEDRIVE_DIR" >> "$NU_LOCAL"
+  echo "  $NU_LOCAL: added ONEDRIVE_DIR."
 fi
 
 echo ""
 echo "---"
 echo "brain-template sync setup (optional)"
 echo "  The brain-sync-template skill needs to know where brain-template is checked out."
-read -r -p "  Path to brain-template repo (leave blank to skip): " BRAIN_TEMPLATE_DIR_INPUT
 
-if [[ -n "$BRAIN_TEMPLATE_DIR_INPUT" ]]; then
+# On reruns: skip if already configured to a valid git repo
+EXISTING_TEMPLATE=$(python3 -c "
+import json, os
+try:
+    s = json.load(open(os.path.expanduser('~/.claude/settings.json')))
+    print(s.get('env', {}).get('BRAIN_TEMPLATE_DIR', ''))
+except: print('')
+" 2>/dev/null)
+
+BRAIN_TEMPLATE_DIR_INPUT=""
+if [[ -n "$EXISTING_TEMPLATE" ]] && git -C "$EXISTING_TEMPLATE" -c safe.directory='*' rev-parse HEAD &>/dev/null 2>&1; then
+  echo "  BRAIN_TEMPLATE_DIR already configured: $EXISTING_TEMPLATE (skipping)"
+  BRAIN_TEMPLATE_DIR_INPUT=""  # signal: skip the block below
+  BRAIN_TEMPLATE_DIR_RESOLVED="$EXISTING_TEMPLATE"
+  SKIP_TEMPLATE=true
+else
+  read -r -p "  Path to brain-template repo (leave blank to skip): " BRAIN_TEMPLATE_DIR_INPUT
+  SKIP_TEMPLATE=false
+fi
+
+if [[ "$SKIP_TEMPLATE" != "true" ]] && [[ -n "$BRAIN_TEMPLATE_DIR_INPUT" ]]; then
   # Expand tilde manually (double-quoting prevents shell tilde expansion)
   BRAIN_TEMPLATE_DIR_EXPANDED="${BRAIN_TEMPLATE_DIR_INPUT/#\~/$HOME}"
   BRAIN_TEMPLATE_DIR_RESOLVED=$(cd "$BRAIN_TEMPLATE_DIR_EXPANDED" 2>/dev/null && pwd) || true
@@ -387,21 +606,20 @@ PYEOF
     # Shell profiles
     append_if_missing "$HOME/.bashrc"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
     append_if_missing "$HOME/.bash_profile" "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
-    append_if_missing "$HOME/.zshrc"        "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
-    append_if_missing "$HOME/.zshenv"       "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
+    append_if_missing "$ZSH_LOCAL"          "BRAIN_TEMPLATE_DIR" "export BRAIN_TEMPLATE_DIR=\"$BRAIN_TEMPLATE_DIR_RESOLVED\"" "brain-template"
 
-    NU_ENV="$HOME/.config/nushell/env.nu"
-    if [[ -f "$NU_ENV" ]] && grep -q "BRAIN_TEMPLATE_DIR" "$NU_ENV"; then
-      echo "  $NU_ENV: BRAIN_TEMPLATE_DIR already set, skipping."
-    elif [[ -f "$NU_ENV" ]]; then
-      printf '\n# brain-template\n$env.BRAIN_TEMPLATE_DIR = "%s"\n' "$BRAIN_TEMPLATE_DIR_RESOLVED" >> "$NU_ENV"
-      echo "  $NU_ENV: added BRAIN_TEMPLATE_DIR."
+    NU_LOCAL="$HOME/.config/nushell/local.nu"
+    if [[ -f "$NU_LOCAL" ]] && grep -q "BRAIN_TEMPLATE_DIR" "$NU_LOCAL"; then
+      echo "  $NU_LOCAL: BRAIN_TEMPLATE_DIR already set, skipping."
+    elif [[ -f "$NU_LOCAL" ]]; then
+      printf '\n# brain-template\n$env.BRAIN_TEMPLATE_DIR = "%s"\n' "$BRAIN_TEMPLATE_DIR_RESOLVED" >> "$NU_LOCAL"
+      echo "  $NU_LOCAL: added BRAIN_TEMPLATE_DIR."
     fi
 
     echo "  BRAIN_TEMPLATE_DIR=$BRAIN_TEMPLATE_DIR_RESOLVED configured."
     echo "  Run /brain-sync-template to sync infrastructure files to the template."
   fi
-else
+elif [[ "$SKIP_TEMPLATE" != "true" ]]; then
   echo "  Skipped. Set BRAIN_TEMPLATE_DIR manually or re-run install.sh when ready."
 fi
 
