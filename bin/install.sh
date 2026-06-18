@@ -8,6 +8,13 @@ BRAIN_DIR="${BRAIN_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 echo "Installing brain from $BRAIN_DIR"
 
+# Detect optional dependencies
+if command -v starship &>/dev/null; then
+  HAVE_STARSHIP=true
+else
+  HAVE_STARSHIP=false
+fi
+
 # --- 1. Claude Code user settings (env + hooks) ---
 SETTINGS="$HOME/.claude/settings.json"
 mkdir -p "$(dirname "$SETTINGS")"
@@ -35,13 +42,17 @@ else:
     settings["env"]["BRAIN_DIR"] = brain_dir
     print(f"  Set BRAIN_DIR={brain_dir} in ~/.claude/settings.json")
 
-# StatusLine
-target_statusline = {"type": "command", "command": "bash \$BRAIN_DIR/bin/ai-statusline.sh"}
-if settings.get("statusLine", {}).get("command") == target_statusline["command"]:
-    print("  statusLine already configured, skipping.")
+# StatusLine (optional — requires Starship; https://starship.rs)
+have_starship = "$HAVE_STARSHIP" == "true"
+if have_starship:
+    target_statusline = {"type": "command", "command": "bash \$BRAIN_DIR/bin/ai-statusline.sh"}
+    if settings.get("statusLine", {}).get("command") == target_statusline["command"]:
+        print("  statusLine already configured, skipping.")
+    else:
+        settings["statusLine"] = target_statusline
+        print("  Configured statusLine -> ai-statusline.sh")
 else:
-    settings["statusLine"] = target_statusline
-    print("  Configured statusLine -> ai-statusline.sh")
+    print("  statusLine skipped (Starship not found — install starship and re-run to enable).")
 
 # Session hooks
 def has_hook(hooks_list, cmd):
@@ -379,13 +390,17 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     agy = {}
 
-# StatusLine
-target_cmd = "bash \$BRAIN_DIR/bin/agy-statusline.sh"
-if agy.get("statusLine", {}).get("command") == target_cmd:
-    print("  agy statusLine already configured, skipping.")
+# StatusLine (optional — requires Starship)
+have_starship = "$HAVE_STARSHIP" == "true"
+if have_starship:
+    target_cmd = "bash \$BRAIN_DIR/bin/agy-statusline.sh"
+    if agy.get("statusLine", {}).get("command") == target_cmd:
+        print("  agy statusLine already configured, skipping.")
+    else:
+        agy["statusLine"] = {"type": "command", "command": target_cmd}
+        print("  Configured agy statusLine -> agy-statusline.sh")
 else:
-    agy["statusLine"] = {"type": "command", "command": target_cmd}
-    print("  Configured agy statusLine -> agy-statusline.sh")
+    print("  agy statusLine skipped (Starship not found).")
 
 # Trusted workspaces
 agy.setdefault("trustedWorkspaces", [])

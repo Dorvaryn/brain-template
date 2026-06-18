@@ -91,6 +91,8 @@ bash ~/brain/bin/install.sh
 
 Wires everything automatically: `BRAIN_DIR` env var, session hooks, MCP server, skill symlinks, global `CLAUDE.md`, and shell profiles. Also handles Gemini CLI and Windows Claude desktop app if present.
 
+**Optional:** if [Starship](https://starship.rs) is installed, the installer also configures the `ai-statusline.sh` brain metrics statusline for Claude Code and Antigravity CLI. If Starship isn't present, the statusline step is skipped with a note — install Starship and re-run `install.sh` to pick it up.
+
 Verify the setup:
 
 ```bash
@@ -197,13 +199,17 @@ brain/
 │   ├── brain-ingest/SKILL.md
 │   ├── brain-status/SKILL.md
 │   └── brain-sync/SKILL.md
+├── hooks/
+│   ├── brain-start.sh           # Claude Code SessionStart hook — git pull
+│   ├── brain-end.sh             # Claude Code SessionEnd hook — auto-commit raw/
+│   ├── brain-stop.sh            # Claude Code Stop hook — capture reminder
+│   ├── gemini-brain-start.sh    # Gemini CLI SessionStart hook — git pull + systemMessage
+│   ├── gemini-brain-end.sh      # Gemini CLI SessionEnd hook — commit raw/ + systemMessage
+│   └── gemini-brain-post.sh     # Gemini CLI PostToolUse hook — capture reminder
 ├── bin/
 │   ├── install.sh               # One-shot machine setup (Claude Code + Gemini CLI)
 │   ├── setup-check.sh           # Verify setup is intact (read-only)
-│   ├── brain-start.sh           # Claude Code SessionStart hook — git pull
-│   ├── brain-end.sh             # Claude Code SessionEnd hook — auto-commit raw/
-│   ├── gemini-brain-start.sh    # Gemini CLI SessionStart hook — git pull + systemMessage
-│   └── gemini-brain-end.sh      # Gemini CLI SessionEnd hook — commit raw/ + systemMessage
+│   └── ai-statusline.sh         # Brain metrics statusline (optional — requires Starship)
 └── templates/                   # Frontmatter templates for each entity type
 ```
 
