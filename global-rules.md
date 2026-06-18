@@ -28,15 +28,6 @@ The @include is a snapshot — it does not update during the session. If index.m
 /brain-ingest — pull latest from Jira, Slack, Outlook, Confluence
 /brain-status — health check: last dream, pending captures, open questions
 
-### Startup dream (mandatory)
-
-If the startup hook reported any of the following, act **before responding to the user's first message**:
-- "N capture/session files pending" → run `/brain-dream`
-- "No dream cycle on record" → run `/brain-dream`
-- "N ingest files pending" → note it, but do not block on it — ingest requires explicit /brain-dream
-
-Do not defer, do not ask permission. The dream runs first, then respond.
-
 ---
 
 ## Brain Capture (always active)
