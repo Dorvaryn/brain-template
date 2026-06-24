@@ -55,6 +55,9 @@ else:
     print("  statusLine skipped (Starship not found — install starship and re-run to enable).")
 
 # Session hooks
+import shutil
+use_setsid = shutil.which("setsid") is not None
+
 def has_hook(hooks_list, cmd):
     return any(h.get("command") == cmd for entry in hooks_list for h in entry.get("hooks", []))
 
@@ -64,10 +67,16 @@ for event, script in [
     ("Stop",         "brain-stop.sh"),
     ("SessionEnd",   "brain-end.sh"),
 ]:
-    # brain-end.sh must use setsid so it survives Claude Code's process group teardown
-    prefix = "setsid bash" if script == "brain-end.sh" else "bash"
+    # brain-end.sh uses setsid on Linux (survives process group teardown); plain bash on macOS
+    prefix = "setsid bash" if (script == "brain-end.sh" and use_setsid) else "bash"
+    alt_prefix = "bash" if prefix == "setsid bash" else "setsid bash"
     cmd = f"{prefix} \$BRAIN_DIR/hooks/{script}"
+    alt_cmd = f"{alt_prefix} \$BRAIN_DIR/hooks/{script}"
     settings["hooks"].setdefault(event, [])
+    # Remove stale wrong-platform variant if present
+    for _entry in settings["hooks"][event]:
+        _entry["hooks"] = [h for h in _entry.get("hooks", []) if h.get("command") != alt_cmd]
+    settings["hooks"][event] = [e for e in settings["hooks"][event] if e.get("hooks")]
     if has_hook(settings["hooks"][event], cmd):
         print(f"  {event} brain hook already registered, skipping.")
     else:
@@ -257,12 +266,14 @@ if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
 
   # Update ~/.gemini/settings.json, ~/.gemini/config/mcp_config.json and ~/.gemini/config/hooks.json
   python3 - <<PYEOF
-import json, os
+import json, os, shutil
 
 settings_path = os.path.expanduser("~/.gemini/settings.json")
 mcp_config_path = os.path.expanduser("~/.gemini/config/mcp_config.json")
 hooks_config_path = os.path.expanduser("~/.gemini/config/hooks.json")
 brain_dir = "$BRAIN_DIR"
+end_prefix = "setsid bash" if shutil.which("setsid") else "bash"
+gemini_end_cmd = f"{end_prefix} \$BRAIN_DIR/hooks/gemini-brain-end.sh"
 
 # 1. Update ~/.gemini/settings.json (legacy Gemini settings)
 try:
@@ -303,7 +314,7 @@ settings["hooks"] = {
         "hooks": [{
             "name": "brain-sync-end",
             "type": "command",
-            "command": "setsid bash \$BRAIN_DIR/hooks/gemini-brain-end.sh",
+            "command": gemini_end_cmd,
             "description": "Commit any pending raw/ captures to brain repo",
             "timeout": 60000
         }]
@@ -363,7 +374,7 @@ hooks_config["hooks"] = {
         "hooks": [{
             "name": "brain-sync-end",
             "type": "command",
-            "command": "setsid bash \$BRAIN_DIR/hooks/gemini-brain-end.sh",
+            "command": gemini_end_cmd,
             "description": "Commit any pending raw/ captures to brain repo",
             "timeout": 60000
         }]
