@@ -55,9 +55,6 @@ else:
     print("  statusLine skipped (Starship not found — install starship and re-run to enable).")
 
 # Session hooks
-import shutil
-use_setsid = shutil.which("setsid") is not None
-
 def has_hook(hooks_list, cmd):
     return any(h.get("command") == cmd for entry in hooks_list for h in entry.get("hooks", []))
 
@@ -67,11 +64,9 @@ for event, script in [
     ("Stop",         "brain-stop.sh"),
     ("SessionEnd",   "brain-end.sh"),
 ]:
-    # brain-end.sh uses setsid on Linux (survives process group teardown); plain bash on macOS
-    prefix = "setsid bash" if (script == "brain-end.sh" and use_setsid) else "bash"
-    alt_prefix = "bash" if prefix == "setsid bash" else "setsid bash"
-    cmd = f"{prefix} \$BRAIN_DIR/hooks/{script}"
-    alt_cmd = f"{alt_prefix} \$BRAIN_DIR/hooks/{script}"
+    # Scripts handle their own background detachment via nohup+disown; plain bash for all platforms
+    cmd = f"bash \$BRAIN_DIR/hooks/{script}"
+    alt_cmd = f"setsid bash \$BRAIN_DIR/hooks/{script}"  # clean up stale setsid variant
     settings["hooks"].setdefault(event, [])
     # Remove stale wrong-platform variant if present
     for _entry in settings["hooks"][event]:
@@ -266,14 +261,14 @@ if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
 
   # Update ~/.gemini/settings.json, ~/.gemini/config/mcp_config.json and ~/.gemini/config/hooks.json
   python3 - <<PYEOF
-import json, os, shutil
+import json, os
 
 settings_path = os.path.expanduser("~/.gemini/settings.json")
 mcp_config_path = os.path.expanduser("~/.gemini/config/mcp_config.json")
 hooks_config_path = os.path.expanduser("~/.gemini/config/hooks.json")
 brain_dir = "$BRAIN_DIR"
-end_prefix = "setsid bash" if shutil.which("setsid") else "bash"
-gemini_end_cmd = f"{end_prefix} \$BRAIN_DIR/hooks/gemini-brain-end.sh"
+# Script handles its own background detachment via nohup+disown; plain bash for all platforms
+gemini_end_cmd = "bash \$BRAIN_DIR/hooks/gemini-brain-end.sh"
 
 # 1. Update ~/.gemini/settings.json (legacy Gemini settings)
 try:
