@@ -176,38 +176,37 @@ fi
 echo ""
 
 # ── 4b. Claude Code MCP servers (CLI) ────────────────────────────────────────
-# Checks: registered + using patched local server (which ignores MCP roots override
-# when CLI args are provided). Env var vs hardcoded path is acceptable as long as
-# the patched server is in use — roots override is the actual risk, not env vars per se.
-# Exception: if $BRAIN_DIR/$ONEDRIVE_DIR is unset at check time, env var usage is still a risk.
+# brain uses bin/brain-mcp/index.js (unified FS + wiki query tools + usage logging).
+# onedrive uses bin/mcp-server-filesystem/index.js (patched upstream FS server).
+# Each check verifies: (a) registered, (b) using the correct binary for that server.
 
 CLAUDE_JSON="$HOME/.claude.json"
 
 _check_mcp_server() {
-  local name="$1" var_name="$2" var_val="$3"
-  if [ -f "$CLAUDE_JSON" ] && grep -q "mcp-server-filesystem" "$CLAUDE_JSON"; then
-    # Patched local server in use — roots override is not a risk.
+  local name="$1" var_name="$2" var_val="$3" expected_binary="${4:-mcp-server-filesystem}"
+  if [ -f "$CLAUDE_JSON" ] && grep -q "$expected_binary" "$CLAUDE_JSON"; then
+    # Correct local server in use.
     # If command uses env var, verify the var is currently set and resolves correctly.
     if grep -qF "\$${var_name}" "$CLAUDE_JSON"; then
       if [ -n "$var_val" ] && [ -d "$var_val" ]; then
-        ok "${name} MCP uses patched local server (\$${var_name} set, resolves to $(readlink -f "$var_val" 2>/dev/null || echo "$var_val"))"
+        ok "${name} MCP uses correct local server (\$${var_name} set, resolves to $(readlink -f "$var_val" 2>/dev/null || echo "$var_val"))"
       else
         fail "${name} MCP uses \$${var_name} env var but ${var_name} is unset or invalid" \
           "Run install.sh to set ${var_name} and re-register the MCP"
       fi
     else
-      ok "${name} MCP uses patched local server (hardcoded path)"
+      ok "${name} MCP uses correct local server (hardcoded path)"
     fi
   elif [ -f "$CLAUDE_JSON" ]; then
-    fail "${name} MCP not using patched local server (may be using npx or old registration)" \
-      "Re-register: claude mcp remove $(echo "$name" | tr '[:upper:]' '[:lower:]') --scope user && run install.sh"
+    fail "${name} MCP not using expected server binary ($expected_binary)" \
+      "Re-register: claude mcp remove $(echo "$name" | tr '[:upper:]' '[:lower:]') && run install.sh"
   fi
 }
 
 if command -v claude &>/dev/null; then
   if claude mcp list 2>/dev/null | grep -q "^brain:"; then
     ok "Brain MCP registered (claude mcp list)"
-    _check_mcp_server "Brain" "BRAIN_DIR" "$BRAIN_DIR"
+    _check_mcp_server "Brain" "BRAIN_DIR" "$BRAIN_DIR" "brain-mcp/index.js"
   else
     fail "Brain MCP not registered with Claude Code CLI" \
       "Run install.sh to register it"
@@ -215,7 +214,7 @@ if command -v claude &>/dev/null; then
 
   if claude mcp list 2>/dev/null | grep -q "^onedrive:"; then
     ok "OneDrive MCP registered (claude mcp list)"
-    _check_mcp_server "OneDrive" "ONEDRIVE_DIR" "$ONEDRIVE_DIR"
+    _check_mcp_server "OneDrive" "ONEDRIVE_DIR" "$ONEDRIVE_DIR" "mcp-server-filesystem"
   else
     fail "OneDrive MCP not registered with Claude Code CLI" \
       "Run install.sh to register it"
@@ -304,18 +303,18 @@ if command -v gemini &>/dev/null || command -v agy &>/dev/null; then
 
   if [ $mcp_ok -eq 1 ]; then
     ok "Brain MCP server configured (Gemini/Antigravity)"
-    # Verify it uses the patched local server, not npx
-    gemini_uses_patched=0
-    if [ -f "$GEMINI_SETTINGS" ] && json_has "$GEMINI_SETTINGS" 'mcp-server-filesystem'; then
-      gemini_uses_patched=1
+    # Verify it uses brain-mcp/index.js (unified server with logging + wiki query tools)
+    gemini_uses_brain_mcp=0
+    if [ -f "$GEMINI_SETTINGS" ] && json_has "$GEMINI_SETTINGS" 'brain-mcp/index.js'; then
+      gemini_uses_brain_mcp=1
     fi
-    if [ -f "$AGY_MCP_CONFIG" ] && json_has "$AGY_MCP_CONFIG" 'mcp-server-filesystem'; then
-      gemini_uses_patched=1
+    if [ -f "$AGY_MCP_CONFIG" ] && json_has "$AGY_MCP_CONFIG" 'brain-mcp/index.js'; then
+      gemini_uses_brain_mcp=1
     fi
-    if [ $gemini_uses_patched -eq 1 ]; then
-      ok "Gemini brain MCP uses patched local server"
+    if [ $gemini_uses_brain_mcp -eq 1 ]; then
+      ok "Gemini brain MCP uses brain-mcp server (logging + wiki query tools)"
     else
-      fail "Gemini brain MCP not using patched local server (may still use npx)" \
+      fail "Gemini brain MCP not using brain-mcp server (may still use mcp-server-filesystem or npx)" \
         "Run install.sh to update ~/.gemini/settings.json and mcp_config.json"
     fi
   else

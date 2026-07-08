@@ -83,16 +83,24 @@ BRAIN_MCP_TOOLS = [
     "mcp__brain__create_directory",
     "mcp__brain__directory_tree",
     "mcp__brain__edit_file",
+    "mcp__brain__find_links",
     "mcp__brain__get_file_info",
+    "mcp__brain__get_open_questions",
+    "mcp__brain__get_summaries",
     "mcp__brain__list_allowed_directories",
     "mcp__brain__list_directory",
     "mcp__brain__list_directory_with_sizes",
+    "mcp__brain__list_recent",
+    "mcp__brain__list_wiki",
     "mcp__brain__move_file",
     "mcp__brain__read_file",
     "mcp__brain__read_media_file",
     "mcp__brain__read_multiple_files",
     "mcp__brain__read_text_file",
     "mcp__brain__search_files",
+    "mcp__brain__search_frontmatter",
+    "mcp__brain__search_wiki_content",
+    "mcp__brain__get_outbound_links",
     "mcp__brain__write_file",
 ]
 settings.setdefault("permissions", {}).setdefault("allow", [])
@@ -183,12 +191,12 @@ else
 fi
 
 # --- 2b. MCP server dependencies ---
-MCP_SERVER_DIR="$BRAIN_DIR/bin/mcp-server-filesystem"
+MCP_SERVER_DIR="$BRAIN_DIR/bin/brain-mcp"
 if [[ -d "$MCP_SERVER_DIR/node_modules" ]]; then
   echo "MCP server dependencies already installed, skipping."
 else
   echo "Installing MCP server dependencies..."
-  (cd "$MCP_SERVER_DIR" && npm install --ignore-scripts 2>&1 | tail -3)
+  (cd "$MCP_SERVER_DIR" && npm install 2>&1 | tail -3)
   echo "MCP server dependencies installed."
 fi
 
@@ -197,13 +205,17 @@ if command -v claude &>/dev/null; then
   echo ""
 
   # 3a. Brain MCP — always registered, auto-allowed for all operations
-  # Uses patched local server (bin/mcp-server-filesystem/) — skips roots override when CLI
-  # args are provided, preventing Claude Code from overriding the configured path with CWD.
-  if claude mcp list 2>/dev/null | grep -q "^brain:"; then
-    echo "Brain MCP already registered, skipping."
+  # Uses brain-mcp (bin/brain-mcp/) — unified server with FS + wiki query tools.
+  BRAIN_MCP_CURRENT=$(claude mcp list 2>/dev/null | grep "^brain:" || echo "")
+  if echo "$BRAIN_MCP_CURRENT" | grep -q "brain-mcp/index.js"; then
+    echo "Brain MCP already registered with correct server, skipping."
   else
+    if [[ -n "$BRAIN_MCP_CURRENT" ]]; then
+      claude mcp remove brain
+      echo "Removed stale brain MCP registration (was: $BRAIN_MCP_CURRENT)."
+    fi
     claude mcp add brain --scope user \
-      -- node "$BRAIN_DIR/bin/mcp-server-filesystem/index.js" "$BRAIN_DIR"
+      -- node "$BRAIN_DIR/bin/brain-mcp/index.js" "$BRAIN_DIR"
     echo "Brain MCP registered (mcp__brain__* — auto-allowed)."
   fi
 
@@ -220,7 +232,7 @@ if command -v claude &>/dev/null; then
 else
   echo ""
   echo "claude CLI not found -- register MCP servers manually:"
-  echo "  claude mcp add brain --scope user -- node '$BRAIN_DIR/bin/mcp-server-filesystem/index.js' '$BRAIN_DIR'"
+  echo "  claude mcp add brain --scope user -- node '$BRAIN_DIR/bin/brain-mcp/index.js' '$BRAIN_DIR'"
   echo "  claude mcp add onedrive --scope user -- node '$BRAIN_DIR/bin/mcp-server-filesystem/index.js' '$ONEDRIVE_DIR'"
 fi
 
@@ -280,7 +292,7 @@ except (FileNotFoundError, json.JSONDecodeError):
 settings.setdefault("mcpServers", {})
 settings["mcpServers"]["brain"] = {
     "command": "node",
-    "args": [f"{brain_dir}/bin/mcp-server-filesystem/index.js", brain_dir],
+    "args": [f"{brain_dir}/bin/brain-mcp/index.js", brain_dir],
 }
 settings.setdefault("env", {})
 settings["env"]["BRAIN_DIR"] = brain_dir
@@ -331,7 +343,7 @@ except (FileNotFoundError, json.JSONDecodeError):
 mcp_config.setdefault("mcpServers", {})
 mcp_config["mcpServers"]["brain"] = {
     "command": "node",
-    "args": [f"{brain_dir}/bin/mcp-server-filesystem/index.js", brain_dir],
+    "args": [f"{brain_dir}/bin/brain-mcp/index.js", brain_dir],
 }
 
 with open(mcp_config_path, "w") as f:
@@ -480,7 +492,7 @@ if "brain" in config["mcpServers"]:
 else:
     config["mcpServers"]["brain"] = {
         "command": "wsl",
-        "args": ["node", f"{brain_dir}/bin/mcp-server-filesystem/index.js", brain_dir],
+        "args": ["node", f"{brain_dir}/bin/brain-mcp/index.js", brain_dir],
     }
     changed = True
     print("Brain MCP added to Windows Claude Desktop config.")

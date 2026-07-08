@@ -8,8 +8,8 @@ nohup bash -c '
   set -uo pipefail
   cd "'"$BRAIN_DIR"'"
   TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  if [[ -n $(git status --porcelain raw/) ]]; then
-    git add raw/
+  if [[ -n $(git status --porcelain raw/ bin/brain-mcp/logs/) ]]; then
+    git add raw/ bin/brain-mcp/logs/
     git commit -m "chore(brain): session capture $TIMESTAMP [skip ci]" \
       && git push origin main \
       || true

@@ -10,3 +10,5 @@
 *.swo
 bin/mcp-server-filesystem/node_modules/
 bin/mcp-server-filesystem/package-lock.json
+bin/brain-mcp/node_modules/
+bin/brain-mcp/package-lock.json

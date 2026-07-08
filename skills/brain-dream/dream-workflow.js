@@ -144,35 +144,21 @@ Brain dir: ${BRAIN_DIR}
 Run timestamp: ${scope.runTimestamp}
 Files processed: ${scope.files.length}
 
-Pages created (relative to ${BRAIN_DIR}/):
+Pages created this run (relative to ${BRAIN_DIR}/):
 ${allCreated.length > 0 ? allCreated.join('\n') : '  (none)'}
 
-Pages updated (relative to ${BRAIN_DIR}/):
+Pages updated this run (relative to ${BRAIN_DIR}/):
 ${allUpdated.length > 0 ? allUpdated.join('\n') : '  (none)'}
 
 Per-file notes:
 ${logNotes.join('\n')}
 
 Steps:
-1. Read ${BRAIN_DIR}/CLAUDE.md — index.md and log.md conventions.
-2. Read ${BRAIN_DIR}/index.md.
-3. For each page in "Pages created" above:
-   a. Read the page to get its type, slug, and Summary.
-   b. Add an entry under the correct section in index.md: [[slug]] -- one-line summary
-4. Append to ${BRAIN_DIR}/log.md:
-   ## [${scope.runTimestamp}] dream-cycle | ${scope.files.length} files → ${allCreated.length} new pages, ${allUpdated.length} updated
-5. Lint — read ${BRAIN_DIR}/skills/brain-dream/SKILL.md "## Reference: Lint rules" section and run each check:
-   a. Contradictions: flag with > CONFLICT: blockquote in both affected pages
-   b. Orphan pages: wiki pages with no inbound links from index.md or other pages
-   c. Potentially resolved open questions: type:question status:open that may be answered by recent activity
-   d. Stale items: decisions/questions open >30 days; active projects with no Log update >90 days
-   e. Slack un-saves: resolved/complete/seen/abandoned pages with Sources lines containing "· saved" but not "· unsaved"
-6. Write index.md and log.md.
-7. Commit and push:
-   git -C ${BRAIN_DIR} add wiki/ index.md log.md
-   git -C ${BRAIN_DIR} commit -m "chore(brain): local dream cycle ${scope.runTimestamp}"
-   git -C ${BRAIN_DIR} push origin main
-8. Return: newPages count, updatedPages count, lintFlags array (one string per flag), slackUnsaves array (Slack URLs ready to un-save).
+1. Read ${BRAIN_DIR}/CLAUDE.md — entity schemas, index.md and log.md conventions.
+2. Read ${BRAIN_DIR}/index.md and ${BRAIN_DIR}/hot.md.
+3. Read ${BRAIN_DIR}/skills/brain-dream/SKILL.md — sections "## Reference: Lint rules" (rules 1–5) and "### 4. Finalise" (sections A, B, C). Follow those rules exactly.
+4. Execute in order: lint checks (including orphan auto-fix), index.md update, hot.md generation, log.md append, commit and push.
+5. Return: newPages count, updatedPages count, lintFlags array (one string per flag), slackUnsaves array (Slack URLs ready to un-save).
 `, { label: 'finalise', phase: 'Finalise', schema: FINALISE_SCHEMA })
 
   log(`Dream cycle complete. ${summary.newPages} new, ${summary.updatedPages} updated. Lint: ${summary.lintFlags.length} flag(s). Un-saves: ${summary.slackUnsaves.length}.`)

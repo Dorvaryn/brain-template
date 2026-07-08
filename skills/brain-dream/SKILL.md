@@ -140,7 +140,7 @@ architectural position. Process directly — frontmatter reduces ambiguity. Rout
 wiki page as with session captures.
 
 ### 2o. For each extracted item
-Find or create the appropriate wiki page. Update content and append to the Log section.
+Find or create the appropriate wiki page. Update content and append to the Log section. Wire the page into the graph: add `[[slug]]` entries to its `## Links` section for any closely related pages — same project, decision area, team, person, or architectural area. At minimum, link to the page's natural parent (e.g. a decision links to its project page; an architecture page links to the teams it affects).
 
 ---
 
@@ -153,26 +153,34 @@ Find or create the appropriate wiki page. Update content and append to the Log s
 Run after all files in scope have been processed.
 
 1. **Contradictions** — scan for conflicting facts across pages; flag with `> CONFLICT:` blockquote in both pages. Never resolve silently.
-2. **Orphan pages** — find wiki pages with no inbound wikilinks from index.md or other pages.
+2. **Backlink repair** — for each page created or updated this run, check that closely related pages link back to it. Add any missing `[[slug]]` entries to those pages' `## Links` sections. This is the sequential complement to the outbound links added during synthesis — synthesis agents write their own page's outbound links; this pass adds the reverse links to pages that couldn't be safely edited in parallel. Report cases where no clear related page exists.
 3. **Potentially resolved questions** — find `type: question, status: open` pages that may be answered by recent activity in the processed files.
 4. **Stale items** — flag decisions/questions open >30 days; projects with `status.delivery: active` and no Log update in >90 days.
-5. **Slack un-saves** — on pages with status resolved/complete/seen/abandoned, find any line in `## Sources` that contains `· saved` but does NOT contain `· unsaved`. Extract the URL from those lines and list them under "Ready to un-save in Slack". Human action required.
-6. Append lint summary to log.md.
+5. **Slack un-saves** — on pages with status resolved/complete/seen/abandoned, find any line in `## Sources` that contains `· saved` but does NOT contain `· unsaved`. List URLs under "Ready to un-save in Slack". Human action required.
 
 ---
 
-### 4. Finalise (handled by the Finalise agent in the Workflow)
+### 4. Finalise
 
-- Update `index.md` for all new pages
-- Append dream-cycle entry to `log.md` using the run timestamp captured at start:
-  `## [YYYY-MM-DDTHH:MMZ] dream-cycle | N files processed → N new pages, N wiki pages updated`
+#### B. Generate hot.md
+hot.md is the ≤8k session-start signal brief. Read the existing hot.md, then rebuild it:
+- **Section 1 — Urgent / Deadline:** pages where any capture processed this cycle contains URGENT, or the page body references an explicit date within 14 days of the run timestamp, or `hot: true` in frontmatter. Never pruned.
+- **Section 2 — Active This Week:** pages in "Pages created this run" or "Pages updated this run" (had signal this cycle), plus `hot: true` pages. Sort newest first.
+- **Section 3 — Watching:** pages carried from the previous hot.md Watching/Active sections that are not in Urgent or Active This Week, and not now resolved/complete/abandoned. Sort newest first.
+- Each entry ≤120 chars (slug + ` -- ` + summary). Trim summary to fit.
+- Budget ≤8k: trim Watching oldest-first, then Active This Week from bottom. Never trim Urgent.
+- Header: `# Brain Hot List\n_Updated: YYYY-MM-DDTHH:MMZ · Signal window: 30 days · Target: ≤8k_`
+
+#### C. Log and commit
+- Append to log.md: `## [YYYY-MM-DDTHH:MMZ] dream-cycle | N files → N new pages, N updated`
+- Write hot.md, log.md.
 - Commit and push:
   ```
-  git add wiki/ index.md log.md
-  git commit -m "chore(brain): local dream cycle [--full] $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  git add wiki/ hot.md log.md
+  git commit -m "chore(brain): local dream cycle YYYY-MM-DDTHH:MMZ"
   git push origin main
   ```
-- Report: `Dream cycle complete. N files ingested. N wiki pages updated. Lint flags: [summary].`
+- Return: newPages count, updatedPages count, lintFlags array (one string per flag), slackUnsaves array (Slack URLs ready to un-save).
 
 ---
 
