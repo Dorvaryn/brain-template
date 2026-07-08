@@ -4,22 +4,28 @@ Brain repo: $BRAIN_DIR (/home/dorvaryn/brain)
 Brain MCP server: brain (filesystem access to the brain repo — all ops auto-allowed)
 OneDrive MCP server: onedrive (filesystem access to $ONEDRIVE_DIR — reads auto-allowed, writes require confirmation; ONEDRIVE_DIR is machine-specific, set in ~/.claude/settings.json by install.sh)
 
-### Using the index
+### Using the hot list
 
-The wiki index loaded above is a session-start snapshot. Use it to:
-- Identify which project, decision, or person a topic relates to
-- Find the slug of the relevant wiki page (`[[slug]] -- one-line summary` format)
-- Understand what is currently in flight before giving advice or making suggestions
+**`hot.md`** is loaded at session start. It is a signal-weighted brief of what is actively moving right now — urgent items, recent captures, in-flight work. Use it for immediate situational awareness.
 
-To read a full wiki page: use the brain MCP server to read `$BRAIN_DIR/wiki/[type]/[slug].md`.
-Before answering questions about specific projects, decisions, people, or architecture — read
-the relevant wiki page first. Do not answer from general knowledge when the brain has context.
+To find wiki page slugs or discover domain context beyond what hot.md covers, use the `mcp__brain__*` query tools — see Brain query tools below. Do not answer from general knowledge when the brain has context. If in doubt, query first.
 
-### Keeping the index current
+### Keeping hot.md current
 
-The @include is a snapshot — it does not update during the session. If index.md changes (after
-/brain-dream runs, or after any wiki write), re-read it via the brain MCP server at path
-`$BRAIN_DIR/index.md`. The MCP-read version supersedes the loaded snapshot.
+hot.md is a session-start snapshot. If it changes after /brain-dream runs, re-read via brain MCP — the MCP-read version supersedes the loaded snapshot.
+
+### Brain query tools
+
+The brain MCP server exposes 8 wiki query tools alongside all standard filesystem tools. Use these to discover wiki pages on demand.
+
+- `mcp__brain__list_wiki({type, status, team, platform, project_type})` — list pages with optional filters; returns slug + first-sentence summary for each. Primary tool for finding page slugs. Valid types: project, decision, question, architecture, team, person, knowledge, week-note (plus any custom types defined in CLAUDE.md).
+- `mcp__brain__get_summaries({slugs})` — fetch full Summary sections and frontmatter for specific slugs. Use after list_wiki to read detail without loading the full page.
+- `mcp__brain__search_frontmatter({field, value})` — case-insensitive substring search on any frontmatter field (owner, jira_epics, project, source, etc.).
+- `mcp__brain__list_recent({days})` — recent log.md entries for the last N days; more reliable than hot.md for finding recently touched pages.
+- `mcp__brain__find_links({slug})` — find all wiki pages containing a [[wikilink]] to a given slug; use for impact analysis before editing.
+- `mcp__brain__get_open_questions({owner?})` — list open decision/question pages; optionally filter by owner.
+- `mcp__brain__search_wiki_content({query, type?, context_lines?})` — full-text search across all wiki page bodies; returns slug + matched lines with context. Use when the topic is mentioned in page body but not frontmatter.
+- `mcp__brain__get_outbound_links({slug})` — return all [[wikilinks]] from the ## Links section of a page; complements find_links for full graph traversal.
 
 ### On-demand commands
 

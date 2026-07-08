@@ -37,10 +37,7 @@ Three immutable layers:
 2. `wiki/` -- LLM-maintained synthesis. Written only by the dream cycle or brain-ops commands.
 3. `CLAUDE.md` -- this file. The schema. Read first, always.
 
-The wiki is the AI's persistent memory layer and a human readable knowledge center. At session start, load the relevant wiki context
-so the AI arrives with full situational awareness. Consistent frontmatter and page structure
-exist to serve machine parsing as much as human readability. The data format is tool-agnostic:
-any AI with filesystem access (Claude, Gemini, etc.) can read and query it.
+The wiki is the AI's persistent memory layer and a human readable knowledge center. At session start, `hot.md` is loaded as a signal-weighted brief of what is actively moving — urgent items, recent captures, in-flight work. For deeper context, use the `mcp__brain__*` query tools to find and read specific wiki pages on demand. Consistent frontmatter and page structure exist to serve machine parsing as much as human readability. The data format is tool-agnostic: any AI with filesystem access (Claude, Gemini, etc.) can read and query it.
 
 ---
 
@@ -81,9 +78,10 @@ Milestones live in the **body**, not frontmatter. Add a `### Milestones` checkli
 ### Milestones
 
 - [x] Milestone complete — YYYY-MM-DD
+- [/] Milestone in progress
 - [ ] Milestone pending
 ```
-Checkbox convention: `[x]` = complete, `[ ]` = not yet complete. Include date only when known. Labels containing `#` (e.g. PR numbers) are safe in markdown but must be quoted in YAML — keep them in the body only.
+Checkbox convention: `[x]` = complete, `[/]` = in progress, `[ ]` = not yet complete. Include date only when known. Labels containing `#` (e.g. PR numbers) are safe in markdown but must be quoted in YAML — keep them in the body only.
 
 ### decisions/ [slug].md
 
@@ -148,6 +146,19 @@ tags: list       # free-form; used for cross-referencing
 
 Detail section: key facts, numbers, and signals extracted from the source.
 Use sub-headings for structure. Keep it dense — this is a reference, not a summary.
+
+### week-notes/ [YYYY-WNN].md
+
+Weekly report. One file per week, named by ISO week number.
+
+```yaml
+---
+type: week-note
+week: YYYY-WNN      # ISO week identifier, e.g. 2026-W27
+period: YYYY-MM-DD to YYYY-MM-DD   # Monday to Friday of that week
+status: draft|sent
+---
+```
 
 ---
 
@@ -310,7 +321,7 @@ Always-active session rules (capture triggers, brain system instructions): see `
 ```
 brain/
 +-- CLAUDE.md                          # This file. Read first.
-+-- claude-global.md                   # Symlinked from ~/.claude/CLAUDE.md — brain rules + @index.md include.
++-- claude-global.md                   # Symlinked from ~/.claude/CLAUDE.md — brain rules for Claude Code sessions.
 +-- gemini-global.md                   # Symlinked from ~/.gemini/GEMINI.md — same rules, Gemini-relative @includes.
 +-- prompt.md                          # Global prompt injected into all sessions.
 +-- config.yml                         # Runtime config. Edit here, not in workflows.
@@ -359,7 +370,7 @@ brain/
 +-- bin/
 |   +-- install.sh                     # One-time setup: hooks, MCP, skills, CLAUDE.md symlink
 |   +-- setup-check.sh                 # Post-install verification
-|   +-- ai-statusline.sh               # AI statusline entry point (Starship integration)
-|   +-- mcp-server-filesystem/         # Patched MCP filesystem server
+|   +-- ai-statusline-brain.sh          # Brain metrics for AI statusline (Starship integration)
+|   +-- brain-mcp/                     # Custom MCP server: filesystem + wiki query tools + usage logging
 +-- .github/workflows/
 ```
